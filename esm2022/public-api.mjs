@@ -1,0 +1,6 @@
+/*
+ * Public API Surface of client
+ */
+export * from './lib/client/lora-client.component';
+// export * from './lib/client.component';
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoicHVibGljLWFwaS5qcyIsInNvdXJjZVJvb3QiOiIiLCJzb3VyY2VzIjpbIi4uLy4uLy4uL3NyYy9sb3JhLWNsaWVudC9zcmMvcHVibGljLWFwaS50cyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiQUFBQTs7R0FFRztBQUVILGNBQWMsb0NBQW9DLENBQUM7QUFDbkQsMENBQTBDIiwic291cmNlc0NvbnRlbnQiOlsiLypcbiAqIFB1YmxpYyBBUEkgU3VyZmFjZSBvZiBjbGllbnRcbiAqL1xuXG5leHBvcnQgKiBmcm9tICcuL2xpYi9jbGllbnQvbG9yYS1jbGllbnQuY29tcG9uZW50Jztcbi8vIGV4cG9ydCAqIGZyb20gJy4vbGliL2NsaWVudC5jb21wb25lbnQnO1xuIl19
