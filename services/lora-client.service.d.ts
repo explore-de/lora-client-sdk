@@ -19,6 +19,7 @@ export declare class LoraClientService {
     private messages;
     private messagesQueue;
     private listeners;
+    private heartBeatInterval;
     connect(url: string, sessionId: string): Promise<unknown> | undefined;
     sendMessage(message: string): void;
     private onSocketMessage;
@@ -31,6 +32,9 @@ export declare class LoraClientService {
     off<K extends Events>(event: K, listener: EventListeners[K]): void;
     getMessages(): ClientMessage[];
     disconnect(): void;
+    private sendHeartBeat;
+    private startHeartBeat;
+    private stopHeartBeat;
     static ɵfac: i0.ɵɵFactoryDeclaration<LoraClientService, never>;
     static ɵprov: i0.ɵɵInjectableDeclaration<LoraClientService>;
 }

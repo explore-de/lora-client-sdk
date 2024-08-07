@@ -15,4 +15,4 @@ git add .
 git commit -m "Release version $VERSION"
 git tag -a "v$VERSION" -m "Release version $VERSION"
 
-#git push origin "v$VERSION"
+git push --follow-tags
