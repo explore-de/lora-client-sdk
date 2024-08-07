@@ -3,4 +3,5 @@ export type ClientMessage = {
     user: string;
     content: string;
     time: number;
+    partIds?: string[];
 };
