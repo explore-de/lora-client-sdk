@@ -4,7 +4,8 @@ import { ClientMessage } from "../../types/ClientMessage";
 import * as i0 from "@angular/core";
 export declare class LoraClient implements OnInit, OnDestroy {
     private loraClientService;
-    url: string;
+    sessionUrl: string;
+    socketUrl: string;
     height: number;
     messages: ClientMessage[];
     message: string;
@@ -23,5 +24,5 @@ export declare class LoraClient implements OnInit, OnDestroy {
     ngOnDestroy(): void;
     protected readonly ConnectionStatus: typeof ConnectionStatus;
     static ɵfac: i0.ɵɵFactoryDeclaration<LoraClient, never>;
-    static ɵcmp: i0.ɵɵComponentDeclaration<LoraClient, "lora-client", never, { "url": { "alias": "url"; "required": false; }; "height": { "alias": "height"; "required": false; }; }, {}, never, never, true, never>;
+    static ɵcmp: i0.ɵɵComponentDeclaration<LoraClient, "lora-client", never, { "sessionUrl": { "alias": "sessionUrl"; "required": false; }; "socketUrl": { "alias": "socketUrl"; "required": false; }; "height": { "alias": "height"; "required": false; }; }, {}, never, never, true, never>;
 }

@@ -19,8 +19,9 @@ export declare class LoraClientService {
     private messages;
     private messagesQueue;
     private listeners;
-    connect(url: string): Promise<unknown> | undefined;
+    connect(url: string, sessionId: string): Promise<unknown> | undefined;
     sendMessage(message: string): void;
+    private onSocketMessage;
     private processQueue;
     private pushMessageToQueue;
     private addMessage;

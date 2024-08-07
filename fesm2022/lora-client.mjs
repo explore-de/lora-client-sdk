@@ -30,8 +30,8 @@ class LoraClientService {
     messages = [];
     messagesQueue = [];
     listeners = {};
-    connect(url) {
-        this.url = url;
+    connect(url, sessionId) {
+        this.url = `${url}/${sessionId}`;
         if (!this.url) {
             throw new ClientError('Can not start connection: server url not set.');
         }
@@ -58,8 +58,9 @@ class LoraClientService {
                 const response = event.data;
                 if (response === 'ping' || response === 'pong')
                     return;
-                const message = { id: crypto.randomUUID(), user: 'lora', content: response, time: Date.now() };
-                this.addMessage(message);
+                if (typeof response === 'string') {
+                    this.onSocketMessage(response);
+                }
             };
             this.socket.onclose = () => {
                 this.isConnected = false;
@@ -79,6 +80,21 @@ class LoraClientService {
     sendMessage(message) {
         this.pushMessageToQueue(message);
         this.processQueue();
+    }
+    onSocketMessage(data) {
+        let json = undefined;
+        let content = '';
+        let partIds = [];
+        try {
+            json = JSON.parse(data);
+            content = json.answer;
+            partIds = json.partIds;
+        }
+        catch (e) {
+            content = data;
+        }
+        const message = { id: crypto.randomUUID(), user: 'lora', content, partIds, time: Date.now() };
+        this.addMessage(message);
     }
     processQueue() {
         const message = this.messagesQueue.pop();
@@ -333,7 +349,8 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.1.2", ngImpor
 
 class LoraClient {
     loraClientService;
-    url = '';
+    sessionUrl = '';
+    socketUrl = '';
     height = 500;
     messages = [];
     message = '';
@@ -351,11 +368,20 @@ class LoraClient {
         this.connect().then();
     }
     async connect() {
+        this.status = ConnectionStatus.CONNECTING;
         try {
-            await this.loraClientService.connect(this.url);
+            const response = await window.fetch(this.sessionUrl);
+            const sessionId = response.status === 200 ? await response.text() : undefined;
+            if (!sessionId) {
+                console.error("Failed to receive session id");
+                this.status = ConnectionStatus.ERROR;
+                return;
+            }
+            await this.loraClientService.connect(this.socketUrl, sessionId);
         }
         catch (e) {
-            console.error('Component error:', e);
+            console.error(e);
+            this.status = ConnectionStatus.ERROR;
         }
     }
     sendMessage() {
@@ -386,7 +412,7 @@ class LoraClient {
     }
     ConnectionStatus = ConnectionStatus;
     static ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "18.1.2", ngImport: i0, type: LoraClient, deps: [{ token: LoraClientService }], target: i0.ɵɵFactoryTarget.Component });
-    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "18.1.2", type: LoraClient, isStandalone: true, selector: "lora-client", inputs: { url: "url", height: "height" }, ngImport: i0, template: `
+    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "18.1.2", type: LoraClient, isStandalone: true, selector: "lora-client", inputs: { sessionUrl: "sessionUrl", socketUrl: "socketUrl", height: "height" }, ngImport: i0, template: `
     <div class="client__container" [ngStyle]="{height:height+'px'}">
 
       <ng-container *ngIf="status === ConnectionStatus.CONNECTED">
@@ -455,9 +481,12 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.1.2", ngImpor
         </div>
       </ng-container>
     </div>`, encapsulation: ViewEncapsulation.ShadowDom, styles: [":host{--lora-client-background: transparent;--lora-client-button-main-color: #000;--lora-client-button-text-color: #fff;--lora-client-button-hover-color: #3f3f3f;--lora-client-button-active-color: #5b5b5b}.client{background:var(--lora-client-background)}.client__container{display:flex;flex-direction:column}.client__container *{box-sizing:border-box}.client__status{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center}.client__status button{background:var(--lora-client-button-main-color);color:var(--lora-client-button-text-color);margin-top:8px;padding:8px;border:none;cursor:pointer}.client__status button:hover{background:var(--lora-client-button-hover-color)}.client__status button:active{background:var(--lora-client-button-active-color)}.client__messages{display:block;border:1px solid #dcdcdc;border-bottom:none;height:100%;flex-grow:1;flex-shrink:1;overflow:hidden}.client__input{border:1px solid #dcdcdc;border-top:none;display:flex;flex-direction:row;flex-grow:0;flex-shrink:0}.client__input-message{flex-grow:1;padding:4px}\n"] }]
-        }], ctorParameters: () => [{ type: LoraClientService }], propDecorators: { url: [{
+        }], ctorParameters: () => [{ type: LoraClientService }], propDecorators: { sessionUrl: [{
                 type: Input,
-                args: ['url']
+                args: ['sessionUrl']
+            }], socketUrl: [{
+                type: Input,
+                args: ['socketUrl']
             }], height: [{
                 type: Input,
                 args: ['height']
@@ -466,7 +495,6 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.1.2", ngImpor
 /*
  * Public API Surface of client
  */
-// export * from './lib/client.component';
 
 /**
  * Generated bundle index. Do not edit.

@@ -1,5 +1,1 @@
-/**
- * Generated bundle index. Do not edit.
- */
-/// <amd-module name="lora-client" />
-export * from './public-api';
+export * from './lib/client/lora-client.component';
