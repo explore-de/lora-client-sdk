@@ -198,7 +198,7 @@ class MessageComponent {
           <div class="client-message__content">
               <div [innerHTML]="getFormattedMessage()"></div>
           </div>
-      </div>`, isInline: true, styles: [".client-message{margin:8px 0;display:flex;flex-direction:column;align-items:flex-start}.client-message__content{background:#efefef;padding:8px;border-radius:16px}.client-message--own{align-items:flex-end}.client-message--own .client-message__content{background:#a6e4e7}\n"], dependencies: [{ kind: "directive", type: NgClass, selector: "[ngClass]", inputs: ["class", "ngClass"] }], encapsulation: i0.ViewEncapsulation.None });
+      </div>`, isInline: true, styles: [".client-message{margin:8px 0;display:flex;flex-direction:column;align-items:flex-start}.client-message__content{background:var(--message-color-1);padding:8px;border-radius:var(--message-border-radius, 16px)}.client-message--own{align-items:flex-end}.client-message--own .client-message__content{background:var(--message-color-2)}\n"], dependencies: [{ kind: "directive", type: NgClass, selector: "[ngClass]", inputs: ["class", "ngClass"] }], encapsulation: i0.ViewEncapsulation.None });
 }
 i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.1.2", ngImport: i0, type: MessageComponent, decorators: [{
             type: Component,
@@ -207,7 +207,7 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.1.2", ngImpor
           <div class="client-message__content">
               <div [innerHTML]="getFormattedMessage()"></div>
           </div>
-      </div>`, styles: [".client-message{margin:8px 0;display:flex;flex-direction:column;align-items:flex-start}.client-message__content{background:#efefef;padding:8px;border-radius:16px}.client-message--own{align-items:flex-end}.client-message--own .client-message__content{background:#a6e4e7}\n"] }]
+      </div>`, styles: [".client-message{margin:8px 0;display:flex;flex-direction:column;align-items:flex-start}.client-message__content{background:var(--message-color-1);padding:8px;border-radius:var(--message-border-radius, 16px)}.client-message--own{align-items:flex-end}.client-message--own .client-message__content{background:var(--message-color-2)}\n"] }]
         }], propDecorators: { message: [{
                 type: Input
             }] } });
@@ -285,7 +285,7 @@ class MessageSendComponent {
               <title>send</title>
               <path d="M2,21L23,12L2,3V10L17,12L2,14V21Z"/>
           </svg>
-      </button>`, isInline: true, styles: [".client-message-send{background:var(--lora-client-button-main-color);border:none;outline:none;border-radius:0;height:100%;cursor:pointer}.client-message-send__icon{height:24px;width:24px;fill:var(--lora-client-button-text-color)}.client-message-send:hover{background:var(--lora-client-button-hover-color)}.client-message-send:active{background:var(--lora-client-button-active-color)}\n"], encapsulation: i0.ViewEncapsulation.None });
+      </button>`, isInline: true, styles: [".client-message-send{background:var(--button-main-color);border:none;outline:none;border-radius:0;height:100%;cursor:pointer}.client-message-send__icon{height:24px;width:24px;fill:var(--button-text-color)}.client-message-send:hover{background:var(--button-hover-color)}.client-message-send:active{background:var(--button-active-color)}\n"], encapsulation: i0.ViewEncapsulation.None });
 }
 i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.1.2", ngImport: i0, type: MessageSendComponent, decorators: [{
             type: Component,
@@ -295,7 +295,7 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.1.2", ngImpor
               <title>send</title>
               <path d="M2,21L23,12L2,3V10L17,12L2,14V21Z"/>
           </svg>
-      </button>`, styles: [".client-message-send{background:var(--lora-client-button-main-color);border:none;outline:none;border-radius:0;height:100%;cursor:pointer}.client-message-send__icon{height:24px;width:24px;fill:var(--lora-client-button-text-color)}.client-message-send:hover{background:var(--lora-client-button-hover-color)}.client-message-send:active{background:var(--lora-client-button-active-color)}\n"] }]
+      </button>`, styles: [".client-message-send{background:var(--button-main-color);border:none;outline:none;border-radius:0;height:100%;cursor:pointer}.client-message-send__icon{height:24px;width:24px;fill:var(--button-text-color)}.client-message-send:hover{background:var(--button-hover-color)}.client-message-send:active{background:var(--button-active-color)}\n"] }]
         }], propDecorators: { onClickSend: [{
                 type: Output
             }] } });
@@ -352,6 +352,7 @@ class LoraClient {
     sessionUrl = '';
     socketUrl = '';
     height = 500;
+    onMessage = new EventEmitter();
     messages = [];
     message = '';
     status = ConnectionStatus.DISCONNECTED;
@@ -359,7 +360,7 @@ class LoraClient {
     onStatusListener;
     constructor(loraClientService) {
         this.loraClientService = loraClientService;
-        this.onMessageListener = this.onMessage.bind(this);
+        this.onMessageListener = this.onMessageReceived.bind(this);
         this.onStatusListener = this.onStatus.bind(this);
         this.loraClientService.on('message', this.onMessageListener);
         this.loraClientService.on('status', this.onStatusListener);
@@ -399,8 +400,11 @@ class LoraClient {
     onClickReconnect() {
         this.connect().then();
     }
-    onMessage(message) {
+    onMessageReceived(message) {
         this.messages = this.loraClientService.getMessages();
+        if (message.user !== 'me') {
+            this.onMessage.emit(message);
+        }
     }
     onStatus(status) {
         this.status = status;
@@ -412,7 +416,7 @@ class LoraClient {
     }
     ConnectionStatus = ConnectionStatus;
     static ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "18.1.2", ngImport: i0, type: LoraClient, deps: [{ token: LoraClientService }], target: i0.ɵɵFactoryTarget.Component });
-    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "18.1.2", type: LoraClient, isStandalone: true, selector: "lora-client", inputs: { sessionUrl: "sessionUrl", socketUrl: "socketUrl", height: "height" }, ngImport: i0, template: `
+    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "18.1.2", type: LoraClient, isStandalone: true, selector: "lora-client", inputs: { sessionUrl: "sessionUrl", socketUrl: "socketUrl", height: "height" }, outputs: { onMessage: "onMessage" }, ngImport: i0, template: `
     <div class="client__container" [ngStyle]="{height:height+'px'}">
 
       <ng-container *ngIf="status === ConnectionStatus.CONNECTED">
@@ -444,7 +448,7 @@ class LoraClient {
           </div>
         </div>
       </ng-container>
-    </div>`, isInline: true, styles: [":host{--lora-client-background: transparent;--lora-client-button-main-color: #000;--lora-client-button-text-color: #fff;--lora-client-button-hover-color: #3f3f3f;--lora-client-button-active-color: #5b5b5b}.client{background:var(--lora-client-background)}.client__container{display:flex;flex-direction:column}.client__container *{box-sizing:border-box}.client__status{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center}.client__status button{background:var(--lora-client-button-main-color);color:var(--lora-client-button-text-color);margin-top:8px;padding:8px;border:none;cursor:pointer}.client__status button:hover{background:var(--lora-client-button-hover-color)}.client__status button:active{background:var(--lora-client-button-active-color)}.client__messages{display:block;border:1px solid #dcdcdc;border-bottom:none;height:100%;flex-grow:1;flex-shrink:1;overflow:hidden}.client__input{border:1px solid #dcdcdc;border-top:none;display:flex;flex-direction:row;flex-grow:0;flex-shrink:0}.client__input-message{flex-grow:1;padding:4px}\n"], dependencies: [{ kind: "ngmodule", type: FormsModule }, { kind: "component", type: ClientMessageInputComponent, selector: "client-message-input", inputs: ["message"], outputs: ["onMessageChanged", "onEnterPressed"] }, { kind: "component", type: MessageSendComponent, selector: "client-message-send", outputs: ["onClickSend"] }, { kind: "component", type: MessagesComponent, selector: "client-messages", inputs: ["messages"] }, { kind: "directive", type: NgStyle, selector: "[ngStyle]", inputs: ["ngStyle"] }, { kind: "directive", type: NgIf, selector: "[ngIf]", inputs: ["ngIf", "ngIfThen", "ngIfElse"] }], encapsulation: i0.ViewEncapsulation.ShadowDom });
+    </div>`, isInline: true, styles: [":host{--background: var(--lora-client__background, transparent);--button-main-color: var(--lora-client__button-main-color, #000000);--button-text-color: var(--lora-client__button-text-color,#fff);--button-hover-color: var(--lora-client__button-hover-color,#3f3f3f);--button-active-color: var(--lora-client__button-active-color,#5b5b5b);--message-border-radius: var(--lora-client__message-border-radius, 16px);--message-color-1: var(--lora-client__message-color-1, #efefef);--message-color-2: var(--lora-client__message-color-2, #a6e4e7)}.client__container{display:flex;flex-direction:column;background:var(--background)}.client__container *{box-sizing:border-box}.client__status{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center}.client__status button{background:var(--button-main-color);color:var(--button-text-color);margin-top:8px;padding:8px;border:none;cursor:pointer}.client__status button:hover{background:var(--button-hover-color)}.client__status button:active{background:var(--button-active-color)}.client__messages{display:block;border:1px solid #dcdcdc;border-bottom:none;height:100%;flex-grow:1;flex-shrink:1;overflow:hidden}.client__input{border:1px solid #dcdcdc;border-top:none;display:flex;flex-direction:row;flex-grow:0;flex-shrink:0}.client__input-message{flex-grow:1;padding:4px}\n"], dependencies: [{ kind: "ngmodule", type: FormsModule }, { kind: "component", type: ClientMessageInputComponent, selector: "client-message-input", inputs: ["message"], outputs: ["onMessageChanged", "onEnterPressed"] }, { kind: "component", type: MessageSendComponent, selector: "client-message-send", outputs: ["onClickSend"] }, { kind: "component", type: MessagesComponent, selector: "client-messages", inputs: ["messages"] }, { kind: "directive", type: NgStyle, selector: "[ngStyle]", inputs: ["ngStyle"] }, { kind: "directive", type: NgIf, selector: "[ngIf]", inputs: ["ngIf", "ngIfThen", "ngIfElse"] }], encapsulation: i0.ViewEncapsulation.ShadowDom });
 }
 i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.1.2", ngImport: i0, type: LoraClient, decorators: [{
             type: Component,
@@ -480,7 +484,7 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.1.2", ngImpor
           </div>
         </div>
       </ng-container>
-    </div>`, encapsulation: ViewEncapsulation.ShadowDom, styles: [":host{--lora-client-background: transparent;--lora-client-button-main-color: #000;--lora-client-button-text-color: #fff;--lora-client-button-hover-color: #3f3f3f;--lora-client-button-active-color: #5b5b5b}.client{background:var(--lora-client-background)}.client__container{display:flex;flex-direction:column}.client__container *{box-sizing:border-box}.client__status{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center}.client__status button{background:var(--lora-client-button-main-color);color:var(--lora-client-button-text-color);margin-top:8px;padding:8px;border:none;cursor:pointer}.client__status button:hover{background:var(--lora-client-button-hover-color)}.client__status button:active{background:var(--lora-client-button-active-color)}.client__messages{display:block;border:1px solid #dcdcdc;border-bottom:none;height:100%;flex-grow:1;flex-shrink:1;overflow:hidden}.client__input{border:1px solid #dcdcdc;border-top:none;display:flex;flex-direction:row;flex-grow:0;flex-shrink:0}.client__input-message{flex-grow:1;padding:4px}\n"] }]
+    </div>`, encapsulation: ViewEncapsulation.ShadowDom, styles: [":host{--background: var(--lora-client__background, transparent);--button-main-color: var(--lora-client__button-main-color, #000000);--button-text-color: var(--lora-client__button-text-color,#fff);--button-hover-color: var(--lora-client__button-hover-color,#3f3f3f);--button-active-color: var(--lora-client__button-active-color,#5b5b5b);--message-border-radius: var(--lora-client__message-border-radius, 16px);--message-color-1: var(--lora-client__message-color-1, #efefef);--message-color-2: var(--lora-client__message-color-2, #a6e4e7)}.client__container{display:flex;flex-direction:column;background:var(--background)}.client__container *{box-sizing:border-box}.client__status{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center}.client__status button{background:var(--button-main-color);color:var(--button-text-color);margin-top:8px;padding:8px;border:none;cursor:pointer}.client__status button:hover{background:var(--button-hover-color)}.client__status button:active{background:var(--button-active-color)}.client__messages{display:block;border:1px solid #dcdcdc;border-bottom:none;height:100%;flex-grow:1;flex-shrink:1;overflow:hidden}.client__input{border:1px solid #dcdcdc;border-top:none;display:flex;flex-direction:row;flex-grow:0;flex-shrink:0}.client__input-message{flex-grow:1;padding:4px}\n"] }]
         }], ctorParameters: () => [{ type: LoraClientService }], propDecorators: { sessionUrl: [{
                 type: Input,
                 args: ['sessionUrl']
@@ -490,6 +494,8 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.1.2", ngImpor
             }], height: [{
                 type: Input,
                 args: ['height']
+            }], onMessage: [{
+                type: Output
             }] } });
 
 /*

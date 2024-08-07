@@ -9,7 +9,7 @@ export class MessageSendComponent {
               <title>send</title>
               <path d="M2,21L23,12L2,3V10L17,12L2,14V21Z"/>
           </svg>
-      </button>`, isInline: true, styles: [".client-message-send{background:var(--lora-client-button-main-color);border:none;outline:none;border-radius:0;height:100%;cursor:pointer}.client-message-send__icon{height:24px;width:24px;fill:var(--lora-client-button-text-color)}.client-message-send:hover{background:var(--lora-client-button-hover-color)}.client-message-send:active{background:var(--lora-client-button-active-color)}\n"], encapsulation: i0.ViewEncapsulation.None });
+      </button>`, isInline: true, styles: [".client-message-send{background:var(--button-main-color);border:none;outline:none;border-radius:0;height:100%;cursor:pointer}.client-message-send__icon{height:24px;width:24px;fill:var(--button-text-color)}.client-message-send:hover{background:var(--button-hover-color)}.client-message-send:active{background:var(--button-active-color)}\n"], encapsulation: i0.ViewEncapsulation.None });
 }
 i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.1.2", ngImport: i0, type: MessageSendComponent, decorators: [{
             type: Component,
@@ -19,7 +19,7 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.1.2", ngImpor
               <title>send</title>
               <path d="M2,21L23,12L2,3V10L17,12L2,14V21Z"/>
           </svg>
-      </button>`, styles: [".client-message-send{background:var(--lora-client-button-main-color);border:none;outline:none;border-radius:0;height:100%;cursor:pointer}.client-message-send__icon{height:24px;width:24px;fill:var(--lora-client-button-text-color)}.client-message-send:hover{background:var(--lora-client-button-hover-color)}.client-message-send:active{background:var(--lora-client-button-active-color)}\n"] }]
+      </button>`, styles: [".client-message-send{background:var(--button-main-color);border:none;outline:none;border-radius:0;height:100%;cursor:pointer}.client-message-send__icon{height:24px;width:24px;fill:var(--button-text-color)}.client-message-send:hover{background:var(--button-hover-color)}.client-message-send:active{background:var(--button-active-color)}\n"] }]
         }], propDecorators: { onClickSend: [{
                 type: Output
             }] } });
