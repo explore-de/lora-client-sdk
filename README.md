@@ -3,16 +3,16 @@
 ## 1. Installing dependency
 #### Using NPM:
 ```shell
-npm add github:explore-de/lora-client-sdk#v0.1.0
+npm add github:explore-de/lora-client-sdk#v0.1.6
 ```
 
 #### Using yarn:
 ```shell
-npm add github:explore-de/lora-client-sdk#v0.1.0
+npm add github:explore-de/lora-client-sdk#v0.1.6
 ```
 
 #### Or by adding directly to `package.json`:
-`"lora-client": "github:explore-de/lora-client-sdk#v0.1.0"`
+`"lora-client": "github:explore-de/lora-client-sdk#v0.1.6"`
 
 
 ## 2. Import client component to your application
@@ -42,6 +42,28 @@ The default height will be 500px, but you can change it by setting `[height]` pr
         [height]="700"
 />
 ```
+
+### Listening for Lora messages
+You can listen for lora messages by subscribing to component events:\n
+Add listener: `(onMessage)="onMessage($event)"`
+```typescript
+function onMessage(message: ClientMessage) {
+  console.log('Message from Lora:', message);
+}
+```
+
+the message has next type:
+```typescript
+type ClientMessage = {
+  id: string,
+  user: string,
+  content: string,
+  time: number,
+  partIds?: string[],
+}
+```
+So, here you can filter messages by partIds and do any logic related to specific partId
+
 
 ### Redefining colour theme
 You can simply redefine color theme by adding those variables to your application or component styles:  
