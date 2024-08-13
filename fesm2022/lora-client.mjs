@@ -366,8 +366,7 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.1.2", ngImpor
 
 class LoraClient {
     loraClientService;
-    sessionUrl = '';
-    socketUrl = '';
+    token = '';
     height = 500;
     onMessage = new EventEmitter();
     messages = [];
@@ -375,6 +374,8 @@ class LoraClient {
     status = ConnectionStatus.DISCONNECTED;
     onMessageListener;
     onStatusListener;
+    sessionUrl = 'https://feynsinn.explore.de/lora-minirag/session';
+    socketUrl = 'wss://feynsinn.explore.de/lora-minirag/ws';
     constructor(loraClientService) {
         this.loraClientService = loraClientService;
         this.onMessageListener = this.onMessageReceived.bind(this);
@@ -388,7 +389,11 @@ class LoraClient {
     async connect() {
         this.status = ConnectionStatus.CONNECTING;
         try {
-            const response = await window.fetch(this.sessionUrl);
+            const response = await window.fetch(this.sessionUrl, {
+                headers: {
+                    'x-api-token': this.token
+                }
+            });
             const sessionId = response.status === 200 ? await response.text() : undefined;
             if (!sessionId) {
                 console.error("Failed to receive session id");
@@ -433,7 +438,7 @@ class LoraClient {
     }
     ConnectionStatus = ConnectionStatus;
     static ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "18.1.2", ngImport: i0, type: LoraClient, deps: [{ token: LoraClientService }], target: i0.ɵɵFactoryTarget.Component });
-    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "18.1.2", type: LoraClient, isStandalone: true, selector: "lora-client", inputs: { sessionUrl: "sessionUrl", socketUrl: "socketUrl", height: "height" }, outputs: { onMessage: "onMessage" }, ngImport: i0, template: `
+    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "18.1.2", type: LoraClient, isStandalone: true, selector: "lora-client", inputs: { token: "token", height: "height" }, outputs: { onMessage: "onMessage" }, ngImport: i0, template: `
     <div class="client__container" [ngStyle]="{height:height+'px'}">
 
       <ng-container *ngIf="status === ConnectionStatus.CONNECTED">
@@ -502,12 +507,9 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.1.2", ngImpor
         </div>
       </ng-container>
     </div>`, encapsulation: ViewEncapsulation.ShadowDom, styles: [":host{--background: var(--lora-client__background, transparent);--button-main-color: var(--lora-client__button-main-color, #000000);--button-text-color: var(--lora-client__button-text-color,#fff);--button-hover-color: var(--lora-client__button-hover-color,#3f3f3f);--button-active-color: var(--lora-client__button-active-color,#5b5b5b);--message-border-radius: var(--lora-client__message-border-radius, 16px);--message-color-1: var(--lora-client__message-color-1, #efefef);--message-color-2: var(--lora-client__message-color-2, #a6e4e7)}.client__container{display:flex;flex-direction:column;background:var(--background)}.client__container *{box-sizing:border-box}.client__status{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center}.client__status button{background:var(--button-main-color);color:var(--button-text-color);margin-top:8px;padding:8px;border:none;cursor:pointer}.client__status button:hover{background:var(--button-hover-color)}.client__status button:active{background:var(--button-active-color)}.client__messages{display:block;border:1px solid #dcdcdc;border-bottom:none;height:100%;flex-grow:1;flex-shrink:1;overflow:hidden}.client__input{border:1px solid #dcdcdc;border-top:none;display:flex;flex-direction:row;flex-grow:0;flex-shrink:0}.client__input-message{flex-grow:1;padding:4px}\n"] }]
-        }], ctorParameters: () => [{ type: LoraClientService }], propDecorators: { sessionUrl: [{
+        }], ctorParameters: () => [{ type: LoraClientService }], propDecorators: { token: [{
                 type: Input,
-                args: ['sessionUrl']
-            }], socketUrl: [{
-                type: Input,
-                args: ['socketUrl']
+                args: ['token']
             }], height: [{
                 type: Input,
                 args: ['height']

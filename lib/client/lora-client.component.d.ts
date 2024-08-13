@@ -4,8 +4,7 @@ import { ClientMessage } from "../../types/ClientMessage";
 import * as i0 from "@angular/core";
 export declare class LoraClient implements OnInit, OnDestroy {
     private loraClientService;
-    sessionUrl: string;
-    socketUrl: string;
+    token: string;
     height: number;
     onMessage: EventEmitter<ClientMessage>;
     messages: ClientMessage[];
@@ -13,6 +12,8 @@ export declare class LoraClient implements OnInit, OnDestroy {
     status: ConnectionStatus;
     private onMessageListener;
     private onStatusListener;
+    private sessionUrl;
+    private socketUrl;
     constructor(loraClientService: LoraClientService);
     ngOnInit(): void;
     connect(): Promise<void>;
@@ -25,5 +26,5 @@ export declare class LoraClient implements OnInit, OnDestroy {
     ngOnDestroy(): void;
     protected readonly ConnectionStatus: typeof ConnectionStatus;
     static ɵfac: i0.ɵɵFactoryDeclaration<LoraClient, never>;
-    static ɵcmp: i0.ɵɵComponentDeclaration<LoraClient, "lora-client", never, { "sessionUrl": { "alias": "sessionUrl"; "required": false; }; "socketUrl": { "alias": "socketUrl"; "required": false; }; "height": { "alias": "height"; "required": false; }; }, { "onMessage": "onMessage"; }, never, never, true, never>;
+    static ɵcmp: i0.ɵɵComponentDeclaration<LoraClient, "lora-client", never, { "token": { "alias": "token"; "required": false; }; "height": { "alias": "height"; "required": false; }; }, { "onMessage": "onMessage"; }, never, never, true, never>;
 }

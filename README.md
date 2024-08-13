@@ -3,16 +3,16 @@
 ## 1. Installing dependency
 #### Using NPM:
 ```shell
-npm add github:explore-de/lora-client-sdk#v0.1.6
+npm add github:explore-de/lora-client-sdk#v0.1.7
 ```
 
 #### Using yarn:
 ```shell
-npm add github:explore-de/lora-client-sdk#v0.1.6
+npm add github:explore-de/lora-client-sdk#v0.1.7
 ```
 
 #### Or by adding directly to `package.json`:
-`"lora-client": "github:explore-de/lora-client-sdk#v0.1.6"`
+`"lora-client": "github:explore-de/lora-client-sdk#v0.1.7"`
 
 
 ## 2. Import client component to your application
@@ -23,8 +23,7 @@ import {LoraClient} from 'lora-client'
 ## 3. Render component with required props 
 ```angular2html
 <lora-client 
-  sessionUrl="https://feynsinn.explore.de/lora-minirag/session" 
-  socketUrl="wss://feynsinn.explore.de/lora-minirag/ws" 
+  [token]="apiToken" 
 />
 ```
 
@@ -33,12 +32,10 @@ ___
 ## Examples
 
 ### Setting client height
-
 The default height will be 500px, but you can change it by setting `[height]` property of client component: 
 ```angular2html
 <lora-client
-        sessionUrl="https://feynsinn.explore.de/lora-minirag/session"
-        socketUrl="wss://feynsinn.explore.de/lora-minirag/ws"
+        [token]="apiToken"
         [height]="700"
 />
 ```
