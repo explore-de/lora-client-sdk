@@ -3,12 +3,12 @@
 ## 1. Installing dependency
 #### Using NPM:
 ```shell
-npm add github:explore-de/lora-client-sdk#v0.1.7
+npm add github:explore-de/lora-client-sdk#v0.1.8
 ```
 
 #### Using yarn:
 ```shell
-npm add github:explore-de/lora-client-sdk#v0.1.7
+npm add github:explore-de/lora-client-sdk#v0.1.8
 ```
 
 #### Or by adding directly to `package.json`:
