@@ -3,16 +3,16 @@
 ## 1. Installing dependency
 #### Using NPM:
 ```shell
-npm add github:explore-de/lora-client-sdk#v0.1.8
+npm add github:explore-de/lora-client-sdk#v0.1.9
 ```
 
 #### Using yarn:
 ```shell
-npm add github:explore-de/lora-client-sdk#v0.1.8
+npm add github:explore-de/lora-client-sdk#v0.1.9
 ```
 
 #### Or by adding directly to `package.json`:
-`"lora-client": "github:explore-de/lora-client-sdk#v0.1.7"`
+`"lora-client": "github:explore-de/lora-client-sdk#v0.1.9"`
 
 
 ## 2. Import client component to your application
@@ -56,8 +56,12 @@ type ClientMessage = {
   user: string,
   content: string,
   time: number,
-  partIds?: string[],
+  parts?: {
+    "anlagenKennzeichen": string,
+    "geo": string
+  }[],
 }
+
 ```
 So, here you can filter messages by partIds and do any logic related to specific partId
 

@@ -88,16 +88,16 @@ class LoraClientService {
     onSocketMessage(data) {
         let json = undefined;
         let content = '';
-        let partIds = [];
+        let parts = [];
         try {
             json = JSON.parse(data);
             content = json.answer;
-            partIds = json.partIds;
+            parts = json.parts;
         }
         catch (e) {
             content = data;
         }
-        const message = { id: crypto.randomUUID(), user: 'lora', content, partIds, time: Date.now() };
+        const message = { id: crypto.randomUUID(), user: 'lora', content, parts, time: Date.now() };
         this.addMessage(message);
     }
     processQueue() {

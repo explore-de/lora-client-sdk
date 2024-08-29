@@ -3,5 +3,8 @@ export type ClientMessage = {
     user: string;
     content: string;
     time: number;
-    partIds?: string[];
+    parts?: {
+        "anlagenKennzeichen": string;
+        "geo": string;
+    }[];
 };
