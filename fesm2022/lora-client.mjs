@@ -24,6 +24,7 @@ var MessageStatus;
 })(MessageStatus || (MessageStatus = {}));
 const HEARTBEAT_INTERVAL = 12000;
 class LoraClientService {
+    serviceUrl = 'https://feynsinn.explore.de/lora-minirag';
     url = undefined;
     socket = null;
     isConnected = false;
@@ -32,14 +33,25 @@ class LoraClientService {
     messagesQueue = [];
     listeners = {};
     heartBeatInterval = 0;
-    connect(url, sessionId) {
-        this.url = `${url}/${sessionId}`;
+    async createSession(token) {
+        const response = await window.fetch(`${this.serviceUrl}/session`, {
+            headers: { 'x-api-token': token }
+        });
+        return response.status === 200 ? await response.text() : undefined;
+    }
+    async connect(options) {
+        const sessionId = options.sessionId;
+        this.url = options.url ?? `${this.serviceUrl}/ws/${sessionId}`.replace('https://', 'wss://').replace('http://', 'ws://');
+        if (!sessionId) {
+            throw new ClientError('Can not start connection: session id not set.');
+        }
         if (!this.url) {
             throw new ClientError('Can not start connection: server url not set.');
         }
         if (this.socket && this.socket.readyState !== WebSocket.CLOSED) {
             throw new ClientError('WebSocket connection is already open or opening.');
         }
+        let oldMessages = [];
         let resolvePromise;
         let rejectPromise;
         const promise = new Promise((resolve, reject) => {
@@ -50,8 +62,12 @@ class LoraClientService {
         this.isError = false;
         this.isConnected = false;
         try {
+            if (options.loadHistory) {
+                oldMessages = await this.getMessagesHistory(sessionId);
+            }
             this.socket = new WebSocket(this.url);
             this.socket.onopen = () => {
+                oldMessages.forEach(message => this.addMessage(message));
                 this.isConnected = true;
                 this.startHeartBeat();
                 this.emitStatus(ConnectionStatus.CONNECTED);
@@ -80,6 +96,21 @@ class LoraClientService {
             return;
         }
         return promise;
+    }
+    async getMessagesHistory(sessionId) {
+        const response = await window.fetch(`${this.serviceUrl}/${sessionId}/messages`);
+        const data = await response.json();
+        const messages = (data || []).map((item) => {
+            const message = {
+                id: item.messageId,
+                user: item.loraMessage ? 'lora' : 'me',
+                content: item.text,
+                time: item.creationDate,
+                parts: item.parts
+            };
+            return message;
+        });
+        return messages.reverse();
     }
     sendMessage(message) {
         this.pushMessageToQueue(message);
@@ -374,8 +405,6 @@ class LoraClient {
     status = ConnectionStatus.DISCONNECTED;
     onMessageListener;
     onStatusListener;
-    sessionUrl = 'https://feynsinn.explore.de/lora-minirag/session';
-    socketUrl = 'wss://feynsinn.explore.de/lora-minirag/ws';
     constructor(loraClientService) {
         this.loraClientService = loraClientService;
         this.onMessageListener = this.onMessageReceived.bind(this);
@@ -389,18 +418,14 @@ class LoraClient {
     async connect() {
         this.status = ConnectionStatus.CONNECTING;
         try {
-            const response = await window.fetch(this.sessionUrl, {
-                headers: {
-                    'x-api-token': this.token
-                }
-            });
-            const sessionId = response.status === 200 ? await response.text() : undefined;
+            const sessionId = localStorage.getItem('LORA_CLIENT_SESSION_ID') || await this.loraClientService.createSession(this.token);
             if (!sessionId) {
                 console.error("Failed to receive session id");
                 this.status = ConnectionStatus.ERROR;
                 return;
             }
-            await this.loraClientService.connect(this.socketUrl, sessionId);
+            await this.loraClientService.connect({ sessionId, loadHistory: true });
+            localStorage.setItem('LORA_CLIENT_SESSION_ID', sessionId);
         }
         catch (e) {
             console.error(e);
@@ -525,5 +550,5 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.1.2", ngImpor
  * Generated bundle index. Do not edit.
  */
 
-export { LoraClient };
+export { ConnectionStatus, LoraClient, LoraClientService };
 //# sourceMappingURL=lora-client.mjs.map

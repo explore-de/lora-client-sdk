@@ -12,8 +12,6 @@ export declare class LoraClient implements OnInit, OnDestroy {
     status: ConnectionStatus;
     private onMessageListener;
     private onStatusListener;
-    private sessionUrl;
-    private socketUrl;
     constructor(loraClientService: LoraClientService);
     ngOnInit(): void;
     connect(): Promise<void>;

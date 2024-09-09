@@ -3,16 +3,16 @@
 ## 1. Installing dependency
 #### Using NPM:
 ```shell
-npm add github:explore-de/lora-client-sdk#v0.1.9
+npm add github:explore-de/lora-client-sdk#v0.2.0
 ```
 
 #### Using yarn:
 ```shell
-npm add github:explore-de/lora-client-sdk#v0.1.9
+npm add github:explore-de/lora-client-sdk#v0.2.0
 ```
 
 #### Or by adding directly to `package.json`:
-`"lora-client": "github:explore-de/lora-client-sdk#v0.1.9"`
+`"lora-client": "github:explore-de/lora-client-sdk#v0.2.0"`
 
 
 ## 2. Import client component to your application
@@ -64,6 +64,36 @@ type ClientMessage = {
 
 ```
 So, here you can filter messages by partIds and do any logic related to specific partId
+
+### Using service directly without using client-component
+You can use service directly without using client-component:
+
+```typescript 
+import {LoraClientService} from 'lora-client'
+import {ClientMessage} from "./ClientMessage";
+
+async function connect(){
+  // create service instance
+  const loraClientService = new LoraClientService();
+  // create new session (also you can reuse sessionId by storing it in local storage as example)
+  const sessionId = await loraClientService.createSession(apiToken);
+  // you can get old messages history
+  const oldMessages = await loraClientService.getMessagesHistory(sessionId);
+
+  //subscribe to events
+  loraClientService.loraClientService.on('message', (message: ClientMessage) =>{
+    console.log('Message from Lora:', message);
+  });
+  loraClientService.loraClientService.on('status', (status: ConnectionStatus) =>{
+    console.log('Client status chnaged:', status);
+  });
+
+  // connect to lora
+  await loraClientService.connect({sessionId});
+}
+
+connect();
+```
 
 
 ### Redefining colour theme

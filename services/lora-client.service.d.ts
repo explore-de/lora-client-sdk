@@ -12,6 +12,7 @@ interface EventListeners {
     status: (status: ConnectionStatus) => void;
 }
 export declare class LoraClientService {
+    private serviceUrl;
     private url;
     private socket;
     private isConnected;
@@ -20,7 +21,13 @@ export declare class LoraClientService {
     private messagesQueue;
     private listeners;
     private heartBeatInterval;
-    connect(url: string, sessionId: string): Promise<unknown> | undefined;
+    createSession(token: string): Promise<string | undefined>;
+    connect(options: {
+        sessionId: string;
+        url?: string;
+        loadHistory?: boolean;
+    }): Promise<unknown>;
+    getMessagesHistory(sessionId: string): Promise<ClientMessage[]>;
     sendMessage(message: string): void;
     private onSocketMessage;
     private processQueue;
