@@ -1,5 +1,5 @@
 import * as i0 from '@angular/core';
-import { Injectable, Component, ViewEncapsulation, Input, EventEmitter, Output, ViewChild } from '@angular/core';
+import { Component, ViewEncapsulation, Input, EventEmitter, Output, ViewChild } from '@angular/core';
 import * as i1 from '@angular/forms';
 import { FormsModule } from '@angular/forms';
 import { NgClass, NgForOf, NgStyle, NgIf, NgFor } from '@angular/common';
@@ -33,6 +33,9 @@ class LoraClientService {
     messagesQueue = [];
     listeners = {};
     heartBeatInterval = 0;
+    constructor() {
+        console.log('LoraClientService constructor');
+    }
     async createSession(token) {
         const response = await window.fetch(`${this.serviceUrl}/session`, {
             headers: { 'x-api-token': token }
@@ -207,13 +210,7 @@ class LoraClientService {
     stopHeartBeat() {
         window.clearInterval(this.heartBeatInterval);
     }
-    static ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "18.1.2", ngImport: i0, type: LoraClientService, deps: [], target: i0.ɵɵFactoryTarget.Injectable });
-    static ɵprov = i0.ɵɵngDeclareInjectable({ minVersion: "12.0.0", version: "18.1.2", ngImport: i0, type: LoraClientService, providedIn: 'root' });
 }
-i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.1.2", ngImport: i0, type: LoraClientService, decorators: [{
-            type: Injectable,
-            args: [{ providedIn: 'root' }]
-        }] });
 
 class MessageComponent {
     message;
@@ -396,7 +393,6 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.1.2", ngImpor
             }] } });
 
 class LoraClient {
-    loraClientService;
     token = '';
     height = 500;
     onMessage = new EventEmitter();
@@ -405,8 +401,9 @@ class LoraClient {
     status = ConnectionStatus.DISCONNECTED;
     onMessageListener;
     onStatusListener;
-    constructor(loraClientService) {
-        this.loraClientService = loraClientService;
+    loraClientService;
+    constructor() {
+        this.loraClientService = new LoraClientService();
         this.onMessageListener = this.onMessageReceived.bind(this);
         this.onStatusListener = this.onStatus.bind(this);
         this.loraClientService.on('message', this.onMessageListener);
@@ -462,7 +459,7 @@ class LoraClient {
         this.loraClientService.off('status', this.onStatusListener);
     }
     ConnectionStatus = ConnectionStatus;
-    static ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "18.1.2", ngImport: i0, type: LoraClient, deps: [{ token: LoraClientService }], target: i0.ɵɵFactoryTarget.Component });
+    static ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "18.1.2", ngImport: i0, type: LoraClient, deps: [], target: i0.ɵɵFactoryTarget.Component });
     static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "18.1.2", type: LoraClient, isStandalone: true, selector: "lora-client", inputs: { token: "token", height: "height" }, outputs: { onMessage: "onMessage" }, ngImport: i0, template: `
     <div class="client__container" [ngStyle]="{height:height+'px'}">
 
@@ -532,7 +529,7 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.1.2", ngImpor
         </div>
       </ng-container>
     </div>`, encapsulation: ViewEncapsulation.ShadowDom, styles: [":host{--background: var(--lora-client__background, transparent);--button-main-color: var(--lora-client__button-main-color, #000000);--button-text-color: var(--lora-client__button-text-color,#fff);--button-hover-color: var(--lora-client__button-hover-color,#3f3f3f);--button-active-color: var(--lora-client__button-active-color,#5b5b5b);--message-border-radius: var(--lora-client__message-border-radius, 16px);--message-color-1: var(--lora-client__message-color-1, #efefef);--message-color-2: var(--lora-client__message-color-2, #a6e4e7)}.client__container{display:flex;flex-direction:column;background:var(--background)}.client__container *{box-sizing:border-box}.client__status{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center}.client__status button{background:var(--button-main-color);color:var(--button-text-color);margin-top:8px;padding:8px;border:none;cursor:pointer}.client__status button:hover{background:var(--button-hover-color)}.client__status button:active{background:var(--button-active-color)}.client__messages{display:block;border:1px solid #dcdcdc;border-bottom:none;height:100%;flex-grow:1;flex-shrink:1;overflow:hidden}.client__input{border:1px solid #dcdcdc;border-top:none;display:flex;flex-direction:row;flex-grow:0;flex-shrink:0}.client__input-message{flex-grow:1;padding:4px}\n"] }]
-        }], ctorParameters: () => [{ type: LoraClientService }], propDecorators: { token: [{
+        }], ctorParameters: () => [], propDecorators: { token: [{
                 type: Input,
                 args: ['token']
             }], height: [{

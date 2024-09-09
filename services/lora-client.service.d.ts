@@ -1,5 +1,4 @@
 import { ClientMessage } from "../types/ClientMessage";
-import * as i0 from "@angular/core";
 export declare enum ConnectionStatus {
     DISCONNECTED = "disconnected",
     CONNECTED = "connected",
@@ -21,6 +20,7 @@ export declare class LoraClientService {
     private messagesQueue;
     private listeners;
     private heartBeatInterval;
+    constructor();
     createSession(token: string): Promise<string | undefined>;
     connect(options: {
         sessionId: string;
@@ -42,7 +42,5 @@ export declare class LoraClientService {
     private sendHeartBeat;
     private startHeartBeat;
     private stopHeartBeat;
-    static ɵfac: i0.ɵɵFactoryDeclaration<LoraClientService, never>;
-    static ɵprov: i0.ɵɵInjectableDeclaration<LoraClientService>;
 }
 export {};

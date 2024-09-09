@@ -1,9 +1,8 @@
 import { EventEmitter, OnDestroy, OnInit } from '@angular/core';
-import { ConnectionStatus, LoraClientService } from '../../services/lora-client.service';
+import { ConnectionStatus } from '../../services/lora-client.service';
 import { ClientMessage } from "../../types/ClientMessage";
 import * as i0 from "@angular/core";
 export declare class LoraClient implements OnInit, OnDestroy {
-    private loraClientService;
     token: string;
     height: number;
     onMessage: EventEmitter<ClientMessage>;
@@ -12,7 +11,8 @@ export declare class LoraClient implements OnInit, OnDestroy {
     status: ConnectionStatus;
     private onMessageListener;
     private onStatusListener;
-    constructor(loraClientService: LoraClientService);
+    private loraClientService;
+    constructor();
     ngOnInit(): void;
     connect(): Promise<void>;
     sendMessage(): void;
