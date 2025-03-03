@@ -1,18 +1,25 @@
-import { EventEmitter, OnDestroy, OnInit } from '@angular/core';
+import { EventEmitter, OnDestroy, OnInit, ElementRef, Type } from '@angular/core';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ConnectionStatus } from '../../services/lora-client.service';
 import { ClientMessage } from "../../types/ClientMessage";
 import * as i0 from "@angular/core";
 export declare class LoraClient implements OnInit, OnDestroy {
+    private el;
+    private sanitizer;
     token: string;
     height: number;
+    stylesFile: string;
+    customMessageComponent: Type<any> | null;
     onMessage: EventEmitter<ClientMessage>;
     messages: ClientMessage[];
     message: string;
     status: ConnectionStatus;
+    sanitizedStylesFile: SafeResourceUrl;
+    protected readonly ConnectionStatus: typeof ConnectionStatus;
     private onMessageListener;
     private onStatusListener;
     private loraClientService;
-    constructor();
+    constructor(el: ElementRef, sanitizer: DomSanitizer);
     ngOnInit(): void;
     connect(): Promise<void>;
     sendMessage(): void;
@@ -22,7 +29,6 @@ export declare class LoraClient implements OnInit, OnDestroy {
     onMessageReceived(message: ClientMessage): void;
     onStatus(status: ConnectionStatus): void;
     ngOnDestroy(): void;
-    protected readonly ConnectionStatus: typeof ConnectionStatus;
     static ɵfac: i0.ɵɵFactoryDeclaration<LoraClient, never>;
-    static ɵcmp: i0.ɵɵComponentDeclaration<LoraClient, "lora-client", never, { "token": { "alias": "token"; "required": false; }; "height": { "alias": "height"; "required": false; }; }, { "onMessage": "onMessage"; }, never, never, true, never>;
+    static ɵcmp: i0.ɵɵComponentDeclaration<LoraClient, "lora-client", never, { "token": { "alias": "token"; "required": false; }; "height": { "alias": "height"; "required": false; }; "stylesFile": { "alias": "stylesFile"; "required": false; }; "customMessageComponent": { "alias": "customMessageComponent"; "required": false; }; }, { "onMessage": "onMessage"; }, never, never, true, never>;
 }
