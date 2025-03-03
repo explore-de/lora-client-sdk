@@ -5,18 +5,18 @@
 #### Using NPM:
 
 ```shell
-npm add github:explore-de/lora-client-sdk#v0.2.0
+npm add github:explore-de/lora-client-sdk#v0.2.4
 ```
 
 #### Using yarn:
 
 ```shell
-npm add github:explore-de/lora-client-sdk#v0.2.0
+npm add github:explore-de/lora-client-sdk#v0.2.4
 ```
 
 #### Or by adding directly to `package.json`:
 
-`"lora-client": "github:explore-de/lora-client-sdk#v0.2.0"`
+`"lora-client": "github:explore-de/lora-client-sdk#v0.2.4"`
 
 ## 2. Import client component to your application
 
