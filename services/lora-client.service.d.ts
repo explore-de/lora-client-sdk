@@ -1,4 +1,4 @@
-import { ClientMessage } from "../types/ClientMessage";
+import { ClientMessage } from "@/lora-client/src/types/ClientMessage";
 export declare enum ConnectionStatus {
     DISCONNECTED = "disconnected",
     CONNECTED = "connected",

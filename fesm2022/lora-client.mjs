@@ -1,8 +1,8 @@
 import * as i0 from '@angular/core';
-import { Input, ViewEncapsulation, Component, EventEmitter, ViewChild, Output, Injector } from '@angular/core';
+import { Inject, Component, Injector, Input, ViewEncapsulation, EventEmitter, ViewChild, Output } from '@angular/core';
 import * as i1 from '@angular/forms';
 import { FormsModule } from '@angular/forms';
-import { NgClass, NgForOf, NgComponentOutlet, NgIf, NgStyle, NgFor } from '@angular/common';
+import { NgForOf, NgClass, NgComponentOutlet, NgIf, NgStyle, NgFor } from '@angular/common';
 import * as i1$1 from '@angular/platform-browser';
 
 class ClientError extends Error {
@@ -25,7 +25,7 @@ var MessageStatus;
 })(MessageStatus || (MessageStatus = {}));
 const HEARTBEAT_INTERVAL = 12000;
 class LoraClientService {
-    serviceUrl = 'https://feynsinn.explore.de/lora-minirag';
+    serviceUrl = 'https://feynsinn.explore.de/api/lora';
     url = undefined;
     socket = null;
     isConnected = false;
@@ -38,14 +38,13 @@ class LoraClientService {
         console.log('LoraClientService constructor');
     }
     async createSession(token) {
-        const response = await window.fetch(`${this.serviceUrl}/session`, {
-            headers: { 'x-api-token': token }
-        });
+        const options = { headers: { 'x-api-token': token } };
+        const response = await window.fetch(`${this.serviceUrl}/session`, options);
         return response.status === 200 ? await response.text() : undefined;
     }
     async connect(options) {
         const sessionId = options.sessionId;
-        this.url = options.url ?? `${this.serviceUrl}/ws/${sessionId}`.replace('https://', 'wss://').replace('http://', 'ws://');
+        this.url = (options.url ?? `${this.serviceUrl}/chat/${sessionId}`).replace('https://', 'wss://').replace('http://', 'ws://');
         if (!sessionId) {
             throw new ClientError('Can not start connection: session id not set.');
         }
@@ -126,7 +125,7 @@ class LoraClientService {
         let parts = [];
         try {
             json = JSON.parse(data);
-            content = json.answer;
+            content = json.text;
             parts = json.parts;
         }
         catch (e) {
@@ -139,7 +138,7 @@ class LoraClientService {
         const message = this.messagesQueue.pop();
         if (!message)
             return;
-        this.addMessage({ id: message.id, user: 'me', time: Date.now(), content: message.content });
+        this.addMessage({ id: crypto.randomUUID(), user: 'me', time: Date.now(), content: message.content });
         this.socket?.send(message?.content);
         message.status = MessageStatus.Sent;
     }
@@ -213,8 +212,54 @@ class LoraClientService {
     }
 }
 
+class TicketWidgetComponent {
+    message;
+    fields = [{ key: 'title', value: 'Title' }, { key: 'description', value: 'Description' }];
+    constructor(message) {
+        this.message = message;
+    }
+    getFieldValue(key) {
+        console.log(this.message, key);
+        //@ts-ignore
+        return this.message?.widget?.widgetProps?.[key] || 'NO VALUE';
+    }
+    static ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: TicketWidgetComponent, deps: [{ token: 'message' }], target: i0.ɵɵFactoryTarget.Component });
+    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "18.2.13", type: TicketWidgetComponent, isStandalone: true, selector: "lib-ticket-widget", ngImport: i0, template: `
+    <div class="ticket-widget">
+      <div class="ticket-widget__header">Ticket information:</div>
+
+      <table>
+        <tr *ngFor="let field of fields">
+          <td class="ticket-widget__field">{{ field.value }}:</td>
+          <td>{{ getFieldValue(field.key) }}</td>
+        </tr>
+      </table>
+    </div>
+  `, isInline: true, styles: [".ticket-widget{border:1px solid #ccc;padding:16px;border-radius:8px;background-color:#f9f9f9}.ticket-widget__header{font-style:italic;border-bottom:2px solid white;padding-bottom:4px;margin-bottom:4px}.ticket-widget__field{font-weight:700;margin-right:8px;vertical-align:top}\n"], dependencies: [{ kind: "directive", type: NgForOf, selector: "[ngFor][ngForOf]", inputs: ["ngForOf", "ngForTrackBy", "ngForTemplate"] }] });
+}
+i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: TicketWidgetComponent, decorators: [{
+            type: Component,
+            args: [{ selector: 'lib-ticket-widget', standalone: true, imports: [NgForOf], template: `
+    <div class="ticket-widget">
+      <div class="ticket-widget__header">Ticket information:</div>
+
+      <table>
+        <tr *ngFor="let field of fields">
+          <td class="ticket-widget__field">{{ field.value }}:</td>
+          <td>{{ getFieldValue(field.key) }}</td>
+        </tr>
+      </table>
+    </div>
+  `, styles: [".ticket-widget{border:1px solid #ccc;padding:16px;border-radius:8px;background-color:#f9f9f9}.ticket-widget__header{font-style:italic;border-bottom:2px solid white;padding-bottom:4px;margin-bottom:4px}.ticket-widget__field{font-weight:700;margin-right:8px;vertical-align:top}\n"] }]
+        }], ctorParameters: () => [{ type: undefined, decorators: [{
+                    type: Inject,
+                    args: ['message']
+                }] }] });
+
 class MessageComponent {
     message;
+    partsTableComponent = null;
+    widgetsMap = new Map([['exploreticket', TicketWidgetComponent]]);
     formatUnixTime(unixTime) {
         // Create a new JavaScript Date object based on the Unix timestamp
         const date = new Date(unixTime * 1000);
@@ -236,26 +281,59 @@ class MessageComponent {
         return this.formatUnixTime(this.message.time);
     }
     getFormattedMessage() {
-        return (this.message.content || '').replace(/\n/g, '<br>');
+        return `<p>${(this.message.content || '').replace(/\n/g, '</p><p>')}</p>`;
+    }
+    getWidgetComponent() {
+        if (this.message.widget?.widgetName) {
+            return this.widgetsMap.get(this.message.widget?.widgetName) || null;
+        }
+        return null;
+    }
+    isWidgetAvailable() {
+        return !!this.message?.widget && this.widgetsMap.has(this.message.widget.widgetName);
+    }
+    createMessageInjector(message) {
+        return Injector.create({ providers: [{ provide: 'message', useValue: message }] });
     }
     static ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: MessageComponent, deps: [], target: i0.ɵɵFactoryTarget.Component });
-    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "18.2.13", type: MessageComponent, isStandalone: true, selector: "client-message", inputs: { message: "message" }, ngImport: i0, template: `
-      <div class="client-message" [ngClass]="{'client-message--own': message.user == 'me'}">
-          <div class="client-message__content">
-              <div [innerHTML]="getFormattedMessage()"></div>
-          </div>
-      </div>`, isInline: true, styles: [".client-message{margin:8px 0;display:flex;flex-direction:column;align-items:flex-start}.client-message__content{background:var(--message-color-1);padding:8px;border-radius:var(--message-border-radius, 16px)}.client-message--own{align-items:flex-end}.client-message--own .client-message__content{background:var(--message-color-2)}\n"], dependencies: [{ kind: "directive", type: NgClass, selector: "[ngClass]", inputs: ["class", "ngClass"] }], encapsulation: i0.ViewEncapsulation.None });
+    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "18.2.13", type: MessageComponent, isStandalone: true, selector: "client-message", inputs: { message: "message", partsTableComponent: "partsTableComponent" }, ngImport: i0, template: `
+    <div class="client-message" [ngClass]="{'client-message--own': message.user == 'me'}">
+      <div class="client-message__content">
+        <div *ngIf="message.content" [innerHTML]="getFormattedMessage()"></div>
+
+        <ng-container *ngIf="isWidgetAvailable()">
+          <ng-container
+            *ngComponentOutlet="getWidgetComponent(); injector: createMessageInjector(message)"></ng-container>
+        </ng-container>
+        <ng-container *ngIf="message.parts && message.parts.length">
+          <ng-container
+            *ngComponentOutlet="partsTableComponent; injector: createMessageInjector(message)"/>
+        </ng-container>
+      </div>
+    </div>`, isInline: true, styles: [".client-message{margin:8px 0;display:flex;flex-direction:column;align-items:flex-start}.client-message__content{background:var(--message-color-1);padding:8px;border-radius:var(--message-border-radius, 16px)}.client-message__content p{padding:0;margin:0}.client-message--own{align-items:flex-end}.client-message--own .client-message__content{background:var(--message-color-2)}\n"], dependencies: [{ kind: "directive", type: NgClass, selector: "[ngClass]", inputs: ["class", "ngClass"] }, { kind: "directive", type: NgComponentOutlet, selector: "[ngComponentOutlet]", inputs: ["ngComponentOutlet", "ngComponentOutletInputs", "ngComponentOutletInjector", "ngComponentOutletContent", "ngComponentOutletNgModule", "ngComponentOutletNgModuleFactory"] }, { kind: "directive", type: NgIf, selector: "[ngIf]", inputs: ["ngIf", "ngIfThen", "ngIfElse"] }], encapsulation: i0.ViewEncapsulation.None });
 }
 i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: MessageComponent, decorators: [{
             type: Component,
-            args: [{ selector: 'client-message', standalone: true, encapsulation: ViewEncapsulation.None, imports: [NgClass], template: `
-      <div class="client-message" [ngClass]="{'client-message--own': message.user == 'me'}">
-          <div class="client-message__content">
-              <div [innerHTML]="getFormattedMessage()"></div>
-          </div>
-      </div>`, styles: [".client-message{margin:8px 0;display:flex;flex-direction:column;align-items:flex-start}.client-message__content{background:var(--message-color-1);padding:8px;border-radius:var(--message-border-radius, 16px)}.client-message--own{align-items:flex-end}.client-message--own .client-message__content{background:var(--message-color-2)}\n"] }]
+            args: [{ selector: 'client-message', standalone: true, encapsulation: ViewEncapsulation.None, imports: [NgClass, NgComponentOutlet, NgIf], template: `
+    <div class="client-message" [ngClass]="{'client-message--own': message.user == 'me'}">
+      <div class="client-message__content">
+        <div *ngIf="message.content" [innerHTML]="getFormattedMessage()"></div>
+
+        <ng-container *ngIf="isWidgetAvailable()">
+          <ng-container
+            *ngComponentOutlet="getWidgetComponent(); injector: createMessageInjector(message)"></ng-container>
+        </ng-container>
+        <ng-container *ngIf="message.parts && message.parts.length">
+          <ng-container
+            *ngComponentOutlet="partsTableComponent; injector: createMessageInjector(message)"/>
+        </ng-container>
+      </div>
+    </div>`, styles: [".client-message{margin:8px 0;display:flex;flex-direction:column;align-items:flex-start}.client-message__content{background:var(--message-color-1);padding:8px;border-radius:var(--message-border-radius, 16px)}.client-message__content p{padding:0;margin:0}.client-message--own{align-items:flex-end}.client-message--own .client-message__content{background:var(--message-color-2)}\n"] }]
         }], propDecorators: { message: [{
                 type: Input
+            }], partsTableComponent: [{
+                type: Input,
+                args: ['partsTableComponent']
             }] } });
 
 class ClientMessageInputComponent {
@@ -348,7 +426,7 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImpo
 
 class MessagesComponent {
     messages = [];
-    customComponent = null;
+    partsTableComponent = null;
     container;
     previousMessagesLength = 0;
     ngOnChanges(changes) {
@@ -372,19 +450,12 @@ class MessagesComponent {
         return Injector.create({ providers: [{ provide: 'message', useValue: message }] });
     }
     static ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: MessagesComponent, deps: [], target: i0.ɵɵFactoryTarget.Component });
-    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "18.2.13", type: MessagesComponent, isStandalone: true, selector: "client-messages", inputs: { messages: "messages", customComponent: "customComponent" }, viewQueries: [{ propertyName: "container", first: true, predicate: ["container"], descendants: true }], usesOnChanges: true, ngImport: i0, template: `
+    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "18.2.13", type: MessagesComponent, isStandalone: true, selector: "client-messages", inputs: { messages: "messages", partsTableComponent: "partsTableComponent" }, viewQueries: [{ propertyName: "container", first: true, predicate: ["container"], descendants: true }], usesOnChanges: true, ngImport: i0, template: `
     <div #container class="client-messages">
-      <ng-container *ngFor="let message of messages">
-        <ng-container *ngIf="customComponent">
-          <ng-container *ngComponentOutlet="customComponent; injector: createInjector(message)"></ng-container>
-        </ng-container>
-        <ng-container *ngIf="!customComponent">
-          <div class="client-messages__inner">
-            <client-message *ngFor="let msg of messages" [message]="msg"></client-message>
-          </div>
-        </ng-container>
-      </ng-container>
-    </div>`, isInline: true, styles: [".client-messages{display:block;padding:0 8px;overflow:auto;scroll-behavior:smooth;height:100%;width:100%}.client-messages__inner{display:flex;flex-direction:column;justify-content:end}\n"], dependencies: [{ kind: "component", type: MessageComponent, selector: "client-message", inputs: ["message"] }, { kind: "directive", type: NgForOf, selector: "[ngFor][ngForOf]", inputs: ["ngForOf", "ngForTrackBy", "ngForTemplate"] }, { kind: "directive", type: NgComponentOutlet, selector: "[ngComponentOutlet]", inputs: ["ngComponentOutlet", "ngComponentOutletInputs", "ngComponentOutletInjector", "ngComponentOutletContent", "ngComponentOutletNgModule", "ngComponentOutletNgModuleFactory"] }, { kind: "directive", type: NgIf, selector: "[ngIf]", inputs: ["ngIf", "ngIfThen", "ngIfElse"] }], encapsulation: i0.ViewEncapsulation.None });
+      <div class="client-messages__inner">
+        <client-message *ngFor="let msg of messages" [message]="msg" [partsTableComponent]="partsTableComponent"/>
+      </div>
+    </div>`, isInline: true, styles: [".client-messages{display:block;padding:0 8px;overflow:auto;scroll-behavior:smooth;height:100%;width:100%}.client-messages__inner{display:flex;flex-direction:column;justify-content:end}\n"], dependencies: [{ kind: "component", type: MessageComponent, selector: "client-message", inputs: ["message", "partsTableComponent"] }, { kind: "directive", type: NgForOf, selector: "[ngFor][ngForOf]", inputs: ["ngForOf", "ngForTrackBy", "ngForTemplate"] }], encapsulation: i0.ViewEncapsulation.None });
 }
 i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: MessagesComponent, decorators: [{
             type: Component,
@@ -395,21 +466,15 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImpo
                         NgIf
                     ], template: `
     <div #container class="client-messages">
-      <ng-container *ngFor="let message of messages">
-        <ng-container *ngIf="customComponent">
-          <ng-container *ngComponentOutlet="customComponent; injector: createInjector(message)"></ng-container>
-        </ng-container>
-        <ng-container *ngIf="!customComponent">
-          <div class="client-messages__inner">
-            <client-message *ngFor="let msg of messages" [message]="msg"></client-message>
-          </div>
-        </ng-container>
-      </ng-container>
+      <div class="client-messages__inner">
+        <client-message *ngFor="let msg of messages" [message]="msg" [partsTableComponent]="partsTableComponent"/>
+      </div>
     </div>`, styles: [".client-messages{display:block;padding:0 8px;overflow:auto;scroll-behavior:smooth;height:100%;width:100%}.client-messages__inner{display:flex;flex-direction:column;justify-content:end}\n"] }]
         }], propDecorators: { messages: [{
                 type: Input
-            }], customComponent: [{
-                type: Input
+            }], partsTableComponent: [{
+                type: Input,
+                args: ['partsTableComponent']
             }], container: [{
                 type: ViewChild,
                 args: ['container']
@@ -421,7 +486,7 @@ class LoraClient {
     token = '';
     height = 500;
     stylesFile = '';
-    customMessageComponent = null;
+    partsTableComponent = null;
     onMessage = new EventEmitter();
     messages = [];
     message = '';
@@ -455,12 +520,15 @@ class LoraClient {
                 this.status = ConnectionStatus.ERROR;
                 return;
             }
-            await this.loraClientService.connect({ sessionId, loadHistory: true });
+            await this.loraClientService.connect({ sessionId, loadHistory: false });
         }
         catch (e) {
             console.error(e);
             this.status = ConnectionStatus.ERROR;
         }
+    }
+    createInjector() {
+        return Injector.create({ providers: [{ provide: 'partsTableComponent', useValue: this.partsTableComponent }] });
     }
     sendMessage() {
         if (this.message.trim()) {
@@ -492,11 +560,10 @@ class LoraClient {
         this.loraClientService.off('status', this.onStatusListener);
     }
     static ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: LoraClient, deps: [{ token: i0.ElementRef }, { token: i1$1.DomSanitizer }], target: i0.ɵɵFactoryTarget.Component });
-    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "18.2.13", type: LoraClient, isStandalone: true, selector: "lora-client", inputs: { token: "token", height: "height", stylesFile: "stylesFile", customMessageComponent: "customMessageComponent" }, outputs: { onMessage: "onMessage" }, ngImport: i0, template: `
+    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "18.2.13", type: LoraClient, isStandalone: true, selector: "lora-client", inputs: { token: "token", height: "height", stylesFile: "stylesFile", partsTableComponent: "partsTableComponent" }, outputs: { onMessage: "onMessage" }, ngImport: i0, template: `
     <div class="client__container" [ngStyle]="{height:height+'px'}">
-
       <ng-container *ngIf="status === ConnectionStatus.CONNECTED">
-        <client-messages class="client__messages" [messages]="messages" [customComponent]="customMessageComponent"/>
+        <client-messages class="client__messages" [messages]="messages" [partsTableComponent]="partsTableComponent"/>
 
         <div class="client__input">
           <client-message-input
@@ -525,15 +592,14 @@ class LoraClient {
         </div>
       </ng-container>
       <link *ngIf="sanitizedStylesFile" rel="stylesheet" type="text/css" [href]="sanitizedStylesFile"/>
-    </div>`, isInline: true, styles: [":host{--background: var(--lora-client__background, transparent);--button-main-color: var(--lora-client__button-main-color, #000000);--button-text-color: var(--lora-client__button-text-color, #fff);--button-hover-color: var(--lora-client__button-hover-color, #3f3f3f);--button-active-color: var(--lora-client__button-active-color, #5b5b5b);--message-border-radius: var(--lora-client__message-border-radius, 16px);--message-color-1: var(--lora-client__message-color-1, #efefef);--message-color-2: var(--lora-client__message-color-2, #a6e4e7)}.client__container{display:flex;flex-direction:column;background:var(--background)}.client__container *{box-sizing:border-box}.client__status{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center}.client__status button{background:var(--button-main-color);color:var(--button-text-color);margin-top:8px;padding:8px;border:none;cursor:pointer}.client__status button:hover{background:var(--button-hover-color)}.client__status button:active{background:var(--button-active-color)}.client__messages{display:block;border:1px solid #dcdcdc;border-bottom:none;height:100%;flex-grow:1;flex-shrink:1;overflow:hidden}.client__input{border:1px solid #dcdcdc;border-top:none;display:flex;flex-direction:row;flex-grow:0;flex-shrink:0}.client__input-message{flex-grow:1;padding:4px}.client::-webkit-scrollbar{background-color:#fff;width:16px}.client::-webkit-scrollbar-track{background-color:#fff}.client::-webkit-scrollbar-track:hover{background-color:#f4f4f4}.client::-webkit-scrollbar-thumb{background-color:#babac0;border-radius:16px;border:5px solid #fff}.client::-webkit-scrollbar-thumb:hover{background-color:#a0a0a5;border:4px solid #f4f4f4}.client::-webkit-scrollbar-button{display:none}\n"], dependencies: [{ kind: "ngmodule", type: FormsModule }, { kind: "component", type: ClientMessageInputComponent, selector: "client-message-input", inputs: ["message"], outputs: ["onMessageChanged", "onEnterPressed"] }, { kind: "component", type: MessageSendComponent, selector: "client-message-send", outputs: ["onClickSend"] }, { kind: "component", type: MessagesComponent, selector: "client-messages", inputs: ["messages", "customComponent"] }, { kind: "directive", type: NgStyle, selector: "[ngStyle]", inputs: ["ngStyle"] }, { kind: "directive", type: NgIf, selector: "[ngIf]", inputs: ["ngIf", "ngIfThen", "ngIfElse"] }], encapsulation: i0.ViewEncapsulation.ShadowDom });
+    </div>`, isInline: true, styles: [":host{--background: var(--lora-client__background, transparent);--button-main-color: var(--lora-client__button-main-color, #000000);--button-text-color: var(--lora-client__button-text-color, #fff);--button-hover-color: var(--lora-client__button-hover-color, #3f3f3f);--button-active-color: var(--lora-client__button-active-color, #5b5b5b);--message-border-radius: var(--lora-client__message-border-radius, 16px);--message-color-1: var(--lora-client__message-color-1, #efefef);--message-color-2: var(--lora-client__message-color-2, #a6e4e7)}.client__container{display:flex;flex-direction:column;background:var(--background)}.client__container *{box-sizing:border-box}.client__status{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center}.client__status button{background:var(--button-main-color);color:var(--button-text-color);margin-top:8px;padding:8px;border:none;cursor:pointer}.client__status button:hover{background:var(--button-hover-color)}.client__status button:active{background:var(--button-active-color)}.client__messages{display:block;border:1px solid #dcdcdc;border-bottom:none;height:100%;flex-grow:1;flex-shrink:1;overflow:hidden}.client__input{border:1px solid #dcdcdc;border-top:none;display:flex;flex-direction:row;flex-grow:0;flex-shrink:0}.client__input-message{flex-grow:1;padding:4px}.client::-webkit-scrollbar{background-color:#fff;width:16px}.client::-webkit-scrollbar-track{background-color:#fff}.client::-webkit-scrollbar-track:hover{background-color:#f4f4f4}.client::-webkit-scrollbar-thumb{background-color:#babac0;border-radius:16px;border:5px solid #fff}.client::-webkit-scrollbar-thumb:hover{background-color:#a0a0a5;border:4px solid #f4f4f4}.client::-webkit-scrollbar-button{display:none}\n"], dependencies: [{ kind: "ngmodule", type: FormsModule }, { kind: "component", type: ClientMessageInputComponent, selector: "client-message-input", inputs: ["message"], outputs: ["onMessageChanged", "onEnterPressed"] }, { kind: "component", type: MessageSendComponent, selector: "client-message-send", outputs: ["onClickSend"] }, { kind: "component", type: MessagesComponent, selector: "client-messages", inputs: ["messages", "partsTableComponent"] }, { kind: "directive", type: NgStyle, selector: "[ngStyle]", inputs: ["ngStyle"] }, { kind: "directive", type: NgIf, selector: "[ngIf]", inputs: ["ngIf", "ngIfThen", "ngIfElse"] }], encapsulation: i0.ViewEncapsulation.ShadowDom });
 }
 i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: LoraClient, decorators: [{
             type: Component,
             args: [{ selector: 'lora-client', standalone: true, imports: [FormsModule, NgFor, MessageComponent, ClientMessageInputComponent, MessageSendComponent, MessagesComponent, NgStyle, NgIf, NgComponentOutlet], template: `
     <div class="client__container" [ngStyle]="{height:height+'px'}">
-
       <ng-container *ngIf="status === ConnectionStatus.CONNECTED">
-        <client-messages class="client__messages" [messages]="messages" [customComponent]="customMessageComponent"/>
+        <client-messages class="client__messages" [messages]="messages" [partsTableComponent]="partsTableComponent"/>
 
         <div class="client__input">
           <client-message-input
@@ -572,9 +638,9 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImpo
             }], stylesFile: [{
                 type: Input,
                 args: ['stylesFile']
-            }], customMessageComponent: [{
+            }], partsTableComponent: [{
                 type: Input,
-                args: ['customMessageComponent']
+                args: ['partsTableComponent']
             }], onMessage: [{
                 type: Output
             }] } });

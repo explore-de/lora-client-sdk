@@ -1,4 +1,4 @@
-import { EventEmitter, OnDestroy, OnInit, ElementRef, Type } from '@angular/core';
+import { EventEmitter, OnDestroy, OnInit, ElementRef, Type, Injector } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ConnectionStatus } from '../../services/lora-client.service';
 import { ClientMessage } from "../../types/ClientMessage";
@@ -9,7 +9,7 @@ export declare class LoraClient implements OnInit, OnDestroy {
     token: string;
     height: number;
     stylesFile: string;
-    customMessageComponent: Type<any> | null;
+    partsTableComponent: Type<any> | null;
     onMessage: EventEmitter<ClientMessage>;
     messages: ClientMessage[];
     message: string;
@@ -22,6 +22,7 @@ export declare class LoraClient implements OnInit, OnDestroy {
     constructor(el: ElementRef, sanitizer: DomSanitizer);
     ngOnInit(): void;
     connect(): Promise<void>;
+    createInjector(): Injector;
     sendMessage(): void;
     onMessageChanged(message: string): void;
     onEnterPressed(): void;
@@ -30,5 +31,5 @@ export declare class LoraClient implements OnInit, OnDestroy {
     onStatus(status: ConnectionStatus): void;
     ngOnDestroy(): void;
     static ɵfac: i0.ɵɵFactoryDeclaration<LoraClient, never>;
-    static ɵcmp: i0.ɵɵComponentDeclaration<LoraClient, "lora-client", never, { "token": { "alias": "token"; "required": false; }; "height": { "alias": "height"; "required": false; }; "stylesFile": { "alias": "stylesFile"; "required": false; }; "customMessageComponent": { "alias": "customMessageComponent"; "required": false; }; }, { "onMessage": "onMessage"; }, never, never, true, never>;
+    static ɵcmp: i0.ɵɵComponentDeclaration<LoraClient, "lora-client", never, { "token": { "alias": "token"; "required": false; }; "height": { "alias": "height"; "required": false; }; "stylesFile": { "alias": "stylesFile"; "required": false; }; "partsTableComponent": { "alias": "partsTableComponent"; "required": false; }; }, { "onMessage": "onMessage"; }, never, never, true, never>;
 }

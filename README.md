@@ -5,18 +5,18 @@
 #### Using NPM:
 
 ```shell
-npm add github:explore-de/lora-client-sdk#v0.2.4
+npm add github:explore-de/lora-client-sdk#v0.2.5
 ```
 
 #### Using yarn:
 
 ```shell
-npm add github:explore-de/lora-client-sdk#v0.2.4
+npm add github:explore-de/lora-client-sdk#v0.2.5
 ```
 
 #### Or by adding directly to `package.json`:
 
-`"lora-client": "github:explore-de/lora-client-sdk#v0.2.4"`
+`"lora-client": "github:explore-de/lora-client-sdk#v0.2.5"`
 
 ## 2. Import client component to your application
 
@@ -49,35 +49,6 @@ The default height will be 500px, but you can change it by setting `[height]` pr
 />
 ```
 
-### Listening for Lora messages
-
-You can listen for lora messages by subscribing to component events:\n
-Add listener: `(onMessage)="onMessage($event)"`
-
-```typescript
-function onMessage(message: ClientMessage) {
-  console.log('Message from Lora:', message);
-}
-```
-
-the message has next type:
-
-```typescript
-type ClientMessage = {
-  id: string,
-  user: string,
-  content: string,
-  time: number,
-  parts?: {
-    "anlagenKennzeichen": string,
-    "geo": string
-  }[],
-}
-
-```
-
-So, here you can filter messages by partIds and do any logic related to specific partId
-
 ### Using service directly without using client-component
 
 You can use service directly without using client-component:
@@ -109,63 +80,63 @@ async function connect() {
 connect();
 ```
 
-### Using custom component for messages
+### Using `partsTableComponent` for rendering parts table in messages
 
-You can use custom component for messages by setting `[messageComponent]` property of client component:
-
-```angular2html
-<lora-client
-  [customMessageComponent]="CustomMessageComponent"
-/>
-```
-
-Example of CustomMessageComponent:
+You need to define `PartsTableComponent` in your application, as example:
 
 ```typescript
-import {Component, Inject, ViewEncapsulation} from '@angular/core';
-import type {ClientMessage} from "@lora-client";
-import {NgClass} from "@angular/common";
+import {Component, Inject} from '@angular/core';
+import {ClientMessage, ClientMessagePartDetails} from "@/lora-client/src";
+import {NgForOf} from "@angular/common";
 
 @Component({
-  selector: 'custom-message',
+  selector: 'parts-table',
   standalone: true,
-  encapsulation: ViewEncapsulation.None,
-  imports: [NgClass],
+  imports: [NgForOf],
+  styleUrl: './parts-table.component.css',
   template: `
-    <div class="custom-message" [ngClass]="{'custom-message--own': isOwnMessage()}">
-      <div class="client-message__content">
-        <div [innerHTML]="getFormattedMessage()"></div>
-        <table>
-          <tr>
-            <td>Lorem</td>
-            <td>Ipsum</td>
-          </tr>
-          <tr>
-            <td>Dolor</td>
-            <td>Sit</td>
-          </tr>
-          <tr>
-            <td>Amet</td>
-            <td>Consectetur</td>
-          </tr>
-        </table>
-      </div>
-    </div>`,
+    <div>
+      <table>
+        <tr>
+          <th *ngFor="let column of columns">{{ column }}</th>
+        </tr>
+
+        <tr *ngFor="let part of message.parts">
+          <td *ngFor="let column of columns">{{ part[column] }}</td>
+        </tr>
+      </table>
+    </div>
+  `
 })
-export class CustomMessageComponent {
-  constructor(@Inject('message') public message: ClientMessage) {}
+export class PartsTableComponent {
+  readonly columns = [
+    'anlagenKennzeichen',
+    'geo',
+    'hersteller',
+    'komponententyp',
+    'lieferant',
+    'lieferzeitInWochen',
+    'terminCDR',
+    'terminLieferungBaustelle',
+    'terminMMR',
+    'terminPDR',
+    'terminvFAT',
+    'verantwortlicher'
+  ];
 
-  isOwnMessage(){
-    return this.message.user === 'me'
-  }
-
-  getFormattedMessage(): string {
-    return (this.message.content || '').replace(/\n/g, '<br>');
+  constructor(@Inject('message') public message: ClientMessage) {
   }
 }
-
 ```
 
+Let the client component know about your custom component:
+
+```angular2html
+
+<lora-client
+  [partsTableComponent]="PartsTableComponent"
+/>
+```
 
 ### Redefining colour theme
 
