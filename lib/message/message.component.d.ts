@@ -1,10 +1,13 @@
-import { Injector, Type } from '@angular/core';
+import { Injector, SimpleChanges, Type } from '@angular/core';
 import { ClientMessage } from "@/lora-client/src/types/ClientMessage";
 import * as i0 from "@angular/core";
 export declare class MessageComponent {
     message: ClientMessage;
     partsTableComponent: Type<any> | null;
     private readonly widgetsMap;
+    messageInjector: Injector;
+    constructor();
+    ngOnChanges(changes: SimpleChanges): void;
     private formatUnixTime;
     getTimeFormatted(): string;
     getFormattedMessage(): string;

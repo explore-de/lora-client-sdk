@@ -4,5 +4,8 @@ export type ClientTicketWidgetMessage = {
     widgetProps: {
         title: string;
         description: string;
+        customAttributes?: {
+            [key: string]: string | number | boolean;
+        };
     };
 };

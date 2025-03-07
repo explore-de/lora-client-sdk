@@ -1,10 +1,9 @@
-import { EventEmitter, OnDestroy, OnInit, ElementRef, Type, Injector } from '@angular/core';
+import { EventEmitter, OnDestroy, OnInit, Type, Injector } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
-import { ConnectionStatus } from '../../services/lora-client.service';
-import { ClientMessage } from "../../types/ClientMessage";
+import { ConnectionStatus } from '@/lora-client/src/services/lora-client.service';
+import { ClientMessage } from "@/lora-client/src/types/ClientMessage";
 import * as i0 from "@angular/core";
 export declare class LoraClient implements OnInit, OnDestroy {
-    private el;
     private sanitizer;
     token: string;
     height: number;
@@ -16,10 +15,10 @@ export declare class LoraClient implements OnInit, OnDestroy {
     status: ConnectionStatus;
     sanitizedStylesFile: SafeResourceUrl;
     protected readonly ConnectionStatus: typeof ConnectionStatus;
-    private onMessageListener;
-    private onStatusListener;
     private loraClientService;
-    constructor(el: ElementRef, sanitizer: DomSanitizer);
+    private readonly onMessageListener;
+    private readonly onStatusListener;
+    constructor(sanitizer: DomSanitizer);
     ngOnInit(): void;
     connect(): Promise<void>;
     createInjector(): Injector;

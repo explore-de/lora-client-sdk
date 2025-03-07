@@ -9,6 +9,7 @@ export declare class MessagesComponent implements OnChanges {
     ngOnChanges(changes: SimpleChanges): void;
     scrollBottom(): void;
     createInjector(message: ClientMessage): Injector;
+    trackByKey(index: number, item: ClientMessage): string;
     static ɵfac: i0.ɵɵFactoryDeclaration<MessagesComponent, never>;
     static ɵcmp: i0.ɵɵComponentDeclaration<MessagesComponent, "client-messages", never, { "messages": { "alias": "messages"; "required": false; }; "partsTableComponent": { "alias": "partsTableComponent"; "required": false; }; }, {}, never, never, true, never>;
 }
