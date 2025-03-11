@@ -628,6 +628,34 @@ class LoraClientService {
             console.error(e);
             return;
         }
+        // const testMessage = {
+        //   id: crypto.randomUUID() as string,
+        //   user: 'lora',
+        //   content: "Example ticket",
+        //   parts: [],
+        //   time: Date.now(),
+        //   widget: {
+        //     widgetName: "exploreticket",
+        //     widgetProps: {
+        //       title: "Create New Part",
+        //       description: "Create a new part for the project. Please ensure all necessary specifications and design documents are included.",
+        //       customAttributes: {
+        //         "completed": false,
+        //         "dueDate": "2025-02-25T09:34:11.966+01:00",
+        //         "timestamp": 297.3,
+        //         "from": 292.3,
+        //         "to": 302.3,
+        //         "x": "-4389.78613281250000000000",
+        //         "y": "-7309.62011718750000000000",
+        //         "z": "0.00013210487668402493",
+        //         "projectId": "be689c07-4cd2-4d26-ae38-3a0c8e14180c",
+        //         "responsible": "Max Mustermann",
+        //         "geo": "333, 3333 ,4444"
+        //       }
+        //     }
+        //   }
+        // } as ClientMessage;
+        // this.addMessage(testMessage);
         return promise;
     }
     async getMessagesHistory(sessionId) {
@@ -653,15 +681,21 @@ class LoraClientService {
         let json = undefined;
         let content = '';
         let parts = [];
+        let ticketWidget = undefined;
         try {
             json = JSON.parse(data);
             content = json.text;
             parts = json.parts;
+            ticketWidget = json.ticketDataJson;
         }
         catch (e) {
             content = data;
         }
         const message = { id: crypto.randomUUID(), user: 'lora', content, parts, time: Date.now() };
+        if (ticketWidget && Object.keys(ticketWidget).length > 0) {
+            message.widget = { widgetName: 'exploreticket', widgetProps: ticketWidget };
+        }
+        console.log('MESSAGE RECEIVED', message);
         this.addMessage(message);
     }
     processQueue() {
