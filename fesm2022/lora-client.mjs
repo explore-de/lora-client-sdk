@@ -254,6 +254,10 @@ class MessageComponent {
         return this.formatUnixTime(this.message.time);
     }
     getFormattedMessage() {
+        if (this.message.content.includes('"text')) {
+            // Can be removed, when JSON Responce is fixed.
+            return `<p>${(this.message.content.split(':')[1].split('"')[1] || '')}</p>`;
+        }
         return `<p>${(this.message.content || '').replace(/\n/g, '</p><p>')}</p>`;
     }
     getWidgetComponent() {
