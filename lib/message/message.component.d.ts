@@ -1,5 +1,5 @@
 import { Injector, SimpleChanges, Type } from '@angular/core';
-import { ClientMessage } from "@/lora-client/src/types/ClientMessage";
+import { ClientMessage } from '../../types/ClientMessage';
 import * as i0 from "@angular/core";
 export declare class MessageComponent {
     message: ClientMessage;

@@ -1,11 +1,261 @@
 import * as i0 from '@angular/core';
-import { EventEmitter, ViewChild, Output, Input, ViewEncapsulation, Component, inject, Inject, Injector, Injectable } from '@angular/core';
-import { NgForOf, NgIf, NgClass, NgComponentOutlet, NgStyle, NgFor } from '@angular/common';
-import { LoraClientService as LoraClientService$1, ConnectionStatus as ConnectionStatus$1 } from '@/lora-client/src/services/lora-client.service';
+import { Injectable, EventEmitter, ViewChild, Output, Input, ViewEncapsulation, Component, inject, Inject, Injector } from '@angular/core';
+import { NgIf, NgForOf, NgClass, NgComponentOutlet, NgStyle, NgFor } from '@angular/common';
 import * as i1 from '@angular/forms';
 import { FormsModule } from '@angular/forms';
-import { EditableFieldComponent } from '@/lora-client/src/lib/widgets/ticket-widget/editable-field/editable-field.component';
 import * as i1$1 from '@angular/platform-browser';
+
+class ClientError extends Error {
+    constructor(message) {
+        super(message);
+    }
+}
+
+var ConnectionStatus;
+(function (ConnectionStatus) {
+    ConnectionStatus["DISCONNECTED"] = "disconnected";
+    ConnectionStatus["CONNECTED"] = "connected";
+    ConnectionStatus["CONNECTING"] = "connecting";
+    ConnectionStatus["ERROR"] = "error";
+})(ConnectionStatus || (ConnectionStatus = {}));
+var MessageStatus;
+(function (MessageStatus) {
+    MessageStatus[MessageStatus["Pending"] = 0] = "Pending";
+    MessageStatus[MessageStatus["Sent"] = 1] = "Sent";
+})(MessageStatus || (MessageStatus = {}));
+const HEARTBEAT_INTERVAL = 12000;
+class LoraClientService {
+    serviceUrl = 'https://feynsinn.explore.de/api/lora';
+    url = undefined;
+    socket = null;
+    isConnected = false;
+    isError = false;
+    messages = [];
+    messagesQueue = [];
+    listeners = {};
+    heartBeatInterval = 0;
+    async createSession(token) {
+        const options = { headers: { 'x-api-token': token } };
+        const response = await window.fetch(`${this.serviceUrl}/session`, options);
+        return response.status === 200 ? await response.text() : undefined;
+    }
+    async connect(options) {
+        const sessionId = options.sessionId;
+        this.url = (options.url ?? `${this.serviceUrl}/chat/${sessionId}`).replace('https://', 'wss://').replace('http://', 'ws://');
+        if (!sessionId) {
+            throw new ClientError('Can not start connection: session id not set.');
+        }
+        if (!this.url) {
+            throw new ClientError('Can not start connection: server url not set.');
+        }
+        if (this.socket && this.socket.readyState !== WebSocket.CLOSED) {
+            throw new ClientError('WebSocket connection is already open or opening.');
+        }
+        let oldMessages = [];
+        let resolvePromise;
+        let rejectPromise;
+        const promise = new Promise((resolve, reject) => {
+            resolvePromise = resolve;
+            rejectPromise = reject;
+        });
+        this.emitStatus(ConnectionStatus.CONNECTING);
+        this.isError = false;
+        this.isConnected = false;
+        try {
+            if (options.loadHistory) {
+                oldMessages = await this.getMessagesHistory(sessionId);
+            }
+            this.socket = new WebSocket(this.url);
+            this.socket.onopen = () => {
+                oldMessages.forEach(message => this.addMessage(message));
+                this.isConnected = true;
+                this.startHeartBeat();
+                this.emitStatus(ConnectionStatus.CONNECTED);
+                resolvePromise();
+            };
+            this.socket.onmessage = (event) => {
+                const response = event.data;
+                if (response === 'ping' || response === 'pong')
+                    return;
+                if (typeof response === 'string') {
+                    this.onSocketMessage(response);
+                }
+            };
+            this.socket.onclose = () => {
+                this.isConnected = false;
+                this.stopHeartBeat();
+                this.emitStatus(this.isError ? ConnectionStatus.ERROR : ConnectionStatus.DISCONNECTED);
+            };
+            this.socket.onerror = (event) => {
+                this.isError = true;
+                rejectPromise?.(event);
+            };
+        }
+        catch (e) {
+            console.error(e);
+            return;
+        }
+        // const testMessage = {
+        //   id: crypto.randomUUID() as string,
+        //   user: 'lora',
+        //   content: "Example ticket",
+        //   parts: [],
+        //   time: Date.now(),
+        //   widget: {
+        //     widgetName: "exploreticket",
+        //     widgetProps: {
+        //       title: "Create New Part",
+        //       description: "Create a new part for the project. Please ensure all necessary specifications and design documents are included.",
+        //       customAttributes: {
+        //         "completed": false,
+        //         "dueDate": "2025-02-25T09:34:11.966+01:00",
+        //         "timestamp": 297.3,
+        //         "from": 292.3,
+        //         "to": 302.3,
+        //         "x": "-4389.78613281250000000000",
+        //         "y": "-7309.62011718750000000000",
+        //         "z": "0.00013210487668402493",
+        //         "projectId": "be689c07-4cd2-4d26-ae38-3a0c8e14180c",
+        //         "responsible": "Max Mustermann",
+        //         "geo": "333, 3333 ,4444"
+        //       }
+        //     }
+        //   }
+        // } as ClientMessage;
+        // this.addMessage(testMessage);
+        return promise;
+    }
+    async getMessagesHistory(sessionId) {
+        const response = await window.fetch(`${this.serviceUrl}/${sessionId}/messages`);
+        const data = await response.json();
+        const messages = (data || []).map((item) => {
+            const message = {
+                id: item.messageId,
+                user: item.loraMessage ? 'lora' : 'me',
+                content: item.text,
+                time: item.creationDate,
+                parts: item.parts
+            };
+            return message;
+        });
+        return messages.reverse();
+    }
+    sendMessage(message, silent = false) {
+        this.pushMessageToQueue(message, silent);
+        this.processQueue();
+    }
+    onSocketMessage(data) {
+        let json = undefined;
+        let content = '';
+        let parts = [];
+        let ticketWidget = undefined;
+        try {
+            json = JSON.parse(data);
+            content = json.text;
+            parts = json.parts;
+            ticketWidget = json.ticketDataJson;
+        }
+        catch (e) {
+            content = data;
+        }
+        const message = { id: crypto.randomUUID(), user: 'lora', content, parts, time: Date.now() };
+        if (ticketWidget && Object.keys(ticketWidget).length > 0) {
+            message.widget = { widgetName: 'exploreticket', widgetProps: ticketWidget };
+        }
+        console.log('MESSAGE RECEIVED', message);
+        this.addMessage(message);
+    }
+    processQueue() {
+        const message = this.messagesQueue.pop();
+        if (!message)
+            return;
+        if (!message.silent) {
+            this.addMessage({ id: crypto.randomUUID(), user: 'me', time: Date.now(), content: message.content });
+        }
+        this.socket?.send(message?.content);
+        message.status = MessageStatus.Sent;
+    }
+    pushMessageToQueue(message, silent = false) {
+        const id = crypto.randomUUID();
+        this.messagesQueue.push({
+            id,
+            silent,
+            content: message,
+            status: MessageStatus.Pending
+        });
+    }
+    addMessage(message) {
+        this.messages.push(message);
+        this.emitMessage(message);
+    }
+    emitMessage(message) {
+        this.listeners.message?.forEach(listener => {
+            try {
+                listener(message);
+            }
+            catch (e) {
+                console.error(e);
+            }
+        });
+    }
+    emitStatus(status) {
+        this.listeners.status?.forEach(listener => {
+            try {
+                listener(status);
+            }
+            catch (e) {
+                console.error(e);
+            }
+        });
+    }
+    on(event, listener) {
+        if (!this.listeners[event]) {
+            this.listeners[event] = [];
+        }
+        this.listeners[event].push(listener);
+    }
+    off(event, listener) {
+        const data = this.listeners[event];
+        const index = data.indexOf(listener);
+        if (index >= 0) {
+            this.listeners[event].splice(index, 1);
+        }
+    }
+    getMessages() {
+        return [...this.messages];
+    }
+    disconnect() {
+        this.messages = [];
+        this.messagesQueue = [];
+        if (this.socket) {
+            this.socket.close(1000, "Closed by client");
+        }
+    }
+    sendHeartBeat() {
+        if (this.isConnected) {
+            this.socket?.send('ping');
+        }
+    }
+    startHeartBeat() {
+        this.heartBeatInterval = window.setInterval(() => {
+            this.sendHeartBeat();
+        }, HEARTBEAT_INTERVAL);
+    }
+    stopHeartBeat() {
+        window.clearInterval(this.heartBeatInterval);
+    }
+    ticketMessageToRequest(message) {
+        return "Update ticket properties from this json: " + JSON.stringify(message.widget?.widgetProps);
+    }
+    static ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: LoraClientService, deps: [], target: i0.ɵɵFactoryTarget.Injectable });
+    static ɵprov = i0.ɵɵngDeclareInjectable({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: LoraClientService, providedIn: 'root' });
+}
+i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: LoraClientService, decorators: [{
+            type: Injectable,
+            args: [{
+                    providedIn: 'root'
+                }]
+        }] });
 
 class ClientMessageInputComponent {
     message;
@@ -95,9 +345,71 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImpo
                 type: Output
             }] } });
 
+class EditableFieldComponent {
+    value = '';
+    isViewOnly = false;
+    onChange = new EventEmitter();
+    isText() {
+        return typeof this.value === 'string';
+    }
+    isNumber() {
+        return typeof this.value === 'number';
+    }
+    isCheckbox() {
+        return typeof this.value === 'boolean';
+    }
+    onInputChange(event) {
+        const input = event.target;
+        const newValue = input.type === 'checkbox' ? input.checked : input.value;
+        this.onChange.emit(newValue);
+    }
+    static ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: EditableFieldComponent, deps: [], target: i0.ɵɵFactoryTarget.Component });
+    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "18.2.13", type: EditableFieldComponent, isStandalone: true, selector: "editable-field", inputs: { value: "value", isViewOnly: "isViewOnly" }, outputs: { onChange: "onChange" }, ngImport: i0, template: `
+    <div class="editable-field">
+      <ng-container *ngIf="isViewOnly">
+        {{ value }}
+      </ng-container>
+      <ng-container *ngIf="!isViewOnly">
+        <input *ngIf="isText()" type="text" class="editable-field__input" [value]="value"
+               (input)="onInputChange($event)"/>
+        <input *ngIf="isNumber()" type="number" class="editable-field__input" [value]="value"
+               (input)="onInputChange($event)"/>
+        <input *ngIf="isCheckbox()" type="checkbox" class="editable-field__input" [checked]="value"
+               (change)="onInputChange($event)"/>
+      </ng-container>
+    </div>
+  `, isInline: true, styles: [".editable-field input[type=checkbox]{margin-left:0}\n"], dependencies: [{ kind: "directive", type: NgIf, selector: "[ngIf]", inputs: ["ngIf", "ngIfThen", "ngIfElse"] }] });
+}
+i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: EditableFieldComponent, decorators: [{
+            type: Component,
+            args: [{ selector: 'editable-field', standalone: true, imports: [NgIf], template: `
+    <div class="editable-field">
+      <ng-container *ngIf="isViewOnly">
+        {{ value }}
+      </ng-container>
+      <ng-container *ngIf="!isViewOnly">
+        <input *ngIf="isText()" type="text" class="editable-field__input" [value]="value"
+               (input)="onInputChange($event)"/>
+        <input *ngIf="isNumber()" type="number" class="editable-field__input" [value]="value"
+               (input)="onInputChange($event)"/>
+        <input *ngIf="isCheckbox()" type="checkbox" class="editable-field__input" [checked]="value"
+               (change)="onInputChange($event)"/>
+      </ng-container>
+    </div>
+  `, styles: [".editable-field input[type=checkbox]{margin-left:0}\n"] }]
+        }], propDecorators: { value: [{
+                type: Input,
+                args: [{ required: true }]
+            }], isViewOnly: [{
+                type: Input,
+                args: [{ required: true }]
+            }], onChange: [{
+                type: Output
+            }] } });
+
 class TicketWidgetComponent {
     message;
-    loraClientService = inject(LoraClientService$1);
+    loraClientService = inject(LoraClientService);
     fields = [{ key: 'title', value: 'Title' }, { key: 'description', value: 'Description' }];
     editableFields = ['completed', 'responsible'];
     customAttributes = [];
@@ -389,10 +701,10 @@ class LoraClient {
     onMessage = new EventEmitter();
     messages = [];
     message = '';
-    status = ConnectionStatus$1.DISCONNECTED;
+    status = ConnectionStatus.DISCONNECTED;
     sanitizedStylesFile = '';
-    ConnectionStatus = ConnectionStatus$1;
-    loraClientService = inject(LoraClientService$1);
+    ConnectionStatus = ConnectionStatus;
+    loraClientService = inject(LoraClientService);
     onMessageListener;
     onStatusListener;
     constructor(sanitizer) {
@@ -409,19 +721,19 @@ class LoraClient {
         }
     }
     async connect() {
-        this.status = ConnectionStatus$1.CONNECTING;
+        this.status = ConnectionStatus.CONNECTING;
         try {
             const sessionId = localStorage.getItem('LORA_CLIENT_SESSION_ID') || await this.loraClientService.createSession(this.token);
             if (!sessionId) {
                 console.error("Failed to receive session id");
-                this.status = ConnectionStatus$1.ERROR;
+                this.status = ConnectionStatus.ERROR;
                 return;
             }
             await this.loraClientService.connect({ sessionId, loadHistory: false });
         }
         catch (e) {
             console.error(e);
-            this.status = ConnectionStatus$1.ERROR;
+            this.status = ConnectionStatus.ERROR;
         }
     }
     createInjector() {
@@ -541,258 +853,6 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImpo
             }], onMessage: [{
                 type: Output
             }] } });
-
-class ClientError extends Error {
-    constructor(message) {
-        super(message);
-    }
-}
-
-var ConnectionStatus;
-(function (ConnectionStatus) {
-    ConnectionStatus["DISCONNECTED"] = "disconnected";
-    ConnectionStatus["CONNECTED"] = "connected";
-    ConnectionStatus["CONNECTING"] = "connecting";
-    ConnectionStatus["ERROR"] = "error";
-})(ConnectionStatus || (ConnectionStatus = {}));
-var MessageStatus;
-(function (MessageStatus) {
-    MessageStatus[MessageStatus["Pending"] = 0] = "Pending";
-    MessageStatus[MessageStatus["Sent"] = 1] = "Sent";
-})(MessageStatus || (MessageStatus = {}));
-const HEARTBEAT_INTERVAL = 12000;
-class LoraClientService {
-    serviceUrl = 'https://feynsinn.explore.de/api/lora';
-    url = undefined;
-    socket = null;
-    isConnected = false;
-    isError = false;
-    messages = [];
-    messagesQueue = [];
-    listeners = {};
-    heartBeatInterval = 0;
-    async createSession(token) {
-        const options = { headers: { 'x-api-token': token } };
-        const response = await window.fetch(`${this.serviceUrl}/session`, options);
-        return response.status === 200 ? await response.text() : undefined;
-    }
-    async connect(options) {
-        const sessionId = options.sessionId;
-        this.url = (options.url ?? `${this.serviceUrl}/chat/${sessionId}`).replace('https://', 'wss://').replace('http://', 'ws://');
-        if (!sessionId) {
-            throw new ClientError('Can not start connection: session id not set.');
-        }
-        if (!this.url) {
-            throw new ClientError('Can not start connection: server url not set.');
-        }
-        if (this.socket && this.socket.readyState !== WebSocket.CLOSED) {
-            throw new ClientError('WebSocket connection is already open or opening.');
-        }
-        let oldMessages = [];
-        let resolvePromise;
-        let rejectPromise;
-        const promise = new Promise((resolve, reject) => {
-            resolvePromise = resolve;
-            rejectPromise = reject;
-        });
-        this.emitStatus(ConnectionStatus.CONNECTING);
-        this.isError = false;
-        this.isConnected = false;
-        try {
-            if (options.loadHistory) {
-                oldMessages = await this.getMessagesHistory(sessionId);
-            }
-            this.socket = new WebSocket(this.url);
-            this.socket.onopen = () => {
-                oldMessages.forEach(message => this.addMessage(message));
-                this.isConnected = true;
-                this.startHeartBeat();
-                this.emitStatus(ConnectionStatus.CONNECTED);
-                resolvePromise();
-            };
-            this.socket.onmessage = (event) => {
-                const response = event.data;
-                if (response === 'ping' || response === 'pong')
-                    return;
-                if (typeof response === 'string') {
-                    this.onSocketMessage(response);
-                }
-            };
-            this.socket.onclose = () => {
-                this.isConnected = false;
-                this.stopHeartBeat();
-                this.emitStatus(this.isError ? ConnectionStatus.ERROR : ConnectionStatus.DISCONNECTED);
-            };
-            this.socket.onerror = (event) => {
-                this.isError = true;
-                rejectPromise?.(event);
-            };
-        }
-        catch (e) {
-            console.error(e);
-            return;
-        }
-        // const testMessage = {
-        //   id: crypto.randomUUID() as string,
-        //   user: 'lora',
-        //   content: "Example ticket",
-        //   parts: [],
-        //   time: Date.now(),
-        //   widget: {
-        //     widgetName: "exploreticket",
-        //     widgetProps: {
-        //       title: "Create New Part",
-        //       description: "Create a new part for the project. Please ensure all necessary specifications and design documents are included.",
-        //       customAttributes: {
-        //         "completed": false,
-        //         "dueDate": "2025-02-25T09:34:11.966+01:00",
-        //         "timestamp": 297.3,
-        //         "from": 292.3,
-        //         "to": 302.3,
-        //         "x": "-4389.78613281250000000000",
-        //         "y": "-7309.62011718750000000000",
-        //         "z": "0.00013210487668402493",
-        //         "projectId": "be689c07-4cd2-4d26-ae38-3a0c8e14180c",
-        //         "responsible": "Max Mustermann",
-        //         "geo": "333, 3333 ,4444"
-        //       }
-        //     }
-        //   }
-        // } as ClientMessage;
-        // this.addMessage(testMessage);
-        return promise;
-    }
-    async getMessagesHistory(sessionId) {
-        const response = await window.fetch(`${this.serviceUrl}/${sessionId}/messages`);
-        const data = await response.json();
-        const messages = (data || []).map((item) => {
-            const message = {
-                id: item.messageId,
-                user: item.loraMessage ? 'lora' : 'me',
-                content: item.text,
-                time: item.creationDate,
-                parts: item.parts
-            };
-            return message;
-        });
-        return messages.reverse();
-    }
-    sendMessage(message, silent = false) {
-        this.pushMessageToQueue(message, silent);
-        this.processQueue();
-    }
-    onSocketMessage(data) {
-        let json = undefined;
-        let content = '';
-        let parts = [];
-        let ticketWidget = undefined;
-        try {
-            json = JSON.parse(data);
-            content = json.text;
-            parts = json.parts;
-            ticketWidget = json.ticketDataJson;
-        }
-        catch (e) {
-            content = data;
-        }
-        const message = { id: crypto.randomUUID(), user: 'lora', content, parts, time: Date.now() };
-        if (ticketWidget && Object.keys(ticketWidget).length > 0) {
-            message.widget = { widgetName: 'exploreticket', widgetProps: ticketWidget };
-        }
-        console.log('MESSAGE RECEIVED', message);
-        this.addMessage(message);
-    }
-    processQueue() {
-        const message = this.messagesQueue.pop();
-        if (!message)
-            return;
-        if (!message.silent) {
-            this.addMessage({ id: crypto.randomUUID(), user: 'me', time: Date.now(), content: message.content });
-        }
-        this.socket?.send(message?.content);
-        message.status = MessageStatus.Sent;
-    }
-    pushMessageToQueue(message, silent = false) {
-        const id = crypto.randomUUID();
-        this.messagesQueue.push({
-            id,
-            silent,
-            content: message,
-            status: MessageStatus.Pending
-        });
-    }
-    addMessage(message) {
-        this.messages.push(message);
-        this.emitMessage(message);
-    }
-    emitMessage(message) {
-        this.listeners.message?.forEach(listener => {
-            try {
-                listener(message);
-            }
-            catch (e) {
-                console.error(e);
-            }
-        });
-    }
-    emitStatus(status) {
-        this.listeners.status?.forEach(listener => {
-            try {
-                listener(status);
-            }
-            catch (e) {
-                console.error(e);
-            }
-        });
-    }
-    on(event, listener) {
-        if (!this.listeners[event]) {
-            this.listeners[event] = [];
-        }
-        this.listeners[event].push(listener);
-    }
-    off(event, listener) {
-        const data = this.listeners[event];
-        const index = data.indexOf(listener);
-        if (index >= 0) {
-            this.listeners[event].splice(index, 1);
-        }
-    }
-    getMessages() {
-        return [...this.messages];
-    }
-    disconnect() {
-        this.messages = [];
-        this.messagesQueue = [];
-        if (this.socket) {
-            this.socket.close(1000, "Closed by client");
-        }
-    }
-    sendHeartBeat() {
-        if (this.isConnected) {
-            this.socket?.send('ping');
-        }
-    }
-    startHeartBeat() {
-        this.heartBeatInterval = window.setInterval(() => {
-            this.sendHeartBeat();
-        }, HEARTBEAT_INTERVAL);
-    }
-    stopHeartBeat() {
-        window.clearInterval(this.heartBeatInterval);
-    }
-    ticketMessageToRequest(message) {
-        return "Update ticket properties from this json: " + JSON.stringify(message.widget?.widgetProps);
-    }
-    static ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: LoraClientService, deps: [], target: i0.ɵɵFactoryTarget.Injectable });
-    static ɵprov = i0.ɵɵngDeclareInjectable({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: LoraClientService, providedIn: 'root' });
-}
-i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: LoraClientService, decorators: [{
-            type: Injectable,
-            args: [{
-                    providedIn: 'root'
-                }]
-        }] });
 
 /*
  * Public API Surface of client

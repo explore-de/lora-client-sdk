@@ -1,7 +1,7 @@
 import { EventEmitter, OnDestroy, OnInit, Type, Injector } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
-import { ConnectionStatus } from '@/lora-client/src/services/lora-client.service';
-import { ClientMessage } from "@/lora-client/src/types/ClientMessage";
+import { ConnectionStatus } from '../../services/lora-client.service';
+import { ClientMessage } from '../../types/ClientMessage';
 import * as i0 from "@angular/core";
 export declare class LoraClient implements OnInit, OnDestroy {
     private sanitizer;
