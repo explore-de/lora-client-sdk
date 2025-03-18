@@ -3,6 +3,7 @@ import { Injectable, EventEmitter, ViewChild, Output, Input, ViewEncapsulation, 
 import { NgIf, NgForOf, NgClass, NgComponentOutlet, NgStyle, NgFor } from '@angular/common';
 import * as i1 from '@angular/forms';
 import { FormsModule } from '@angular/forms';
+import { TicketsWidgetComponent } from '@/lora-client/src/lib/widgets/tickets-widget/tickets-widget.component';
 import * as i1$1 from '@angular/platform-browser';
 
 class ClientError extends Error {
@@ -95,34 +96,6 @@ class LoraClientService {
             console.error(e);
             return;
         }
-        // const testMessage = {
-        //   id: crypto.randomUUID() as string,
-        //   user: 'lora',
-        //   content: "Example ticket",
-        //   parts: [],
-        //   time: Date.now(),
-        //   widget: {
-        //     widgetName: "exploreticket",
-        //     widgetProps: {
-        //       title: "Create New Part",
-        //       description: "Create a new part for the project. Please ensure all necessary specifications and design documents are included.",
-        //       customAttributes: {
-        //         "completed": false,
-        //         "dueDate": "2025-02-25T09:34:11.966+01:00",
-        //         "timestamp": 297.3,
-        //         "from": 292.3,
-        //         "to": 302.3,
-        //         "x": "-4389.78613281250000000000",
-        //         "y": "-7309.62011718750000000000",
-        //         "z": "0.00013210487668402493",
-        //         "projectId": "be689c07-4cd2-4d26-ae38-3a0c8e14180c",
-        //         "responsible": "Max Mustermann",
-        //         "geo": "333, 3333 ,4444"
-        //       }
-        //     }
-        //   }
-        // } as ClientMessage;
-        // this.addMessage(testMessage);
         return promise;
     }
     async getMessagesHistory(sessionId) {
@@ -148,21 +121,33 @@ class LoraClientService {
         let json = undefined;
         let content = '';
         let parts = [];
+        let ticketSuggestionWidget = undefined;
         let ticketWidget = undefined;
+        let ticketsWidget = undefined;
         try {
             json = JSON.parse(data);
             content = json.text;
             parts = json.parts;
-            ticketWidget = json.ticketDataJson;
+            ticketSuggestionWidget = json.ticketSuggestionNullable;
+            ticketWidget = json.createdTicketNullable;
+            ticketsWidget = json.ticketSearchResultsNullable;
         }
         catch (e) {
             content = data;
         }
         const message = { id: crypto.randomUUID(), user: 'lora', content, parts, time: Date.now() };
-        if (ticketWidget && Object.keys(ticketWidget).length > 0) {
-            message.widget = { widgetName: 'exploreticket', widgetProps: ticketWidget };
+        if (ticketSuggestionWidget && Object.keys(ticketSuggestionWidget).length > 0) {
+            message.widget = {
+                widgetName: 'TicketSuggestion',
+                widgetProps: { ticket: ticketSuggestionWidget, isEditable: true }
+            };
         }
-        console.log('MESSAGE RECEIVED', message);
+        else if (ticketWidget && Object.keys(ticketWidget).length > 0) {
+            message.widget = { widgetName: 'Ticket', widgetProps: { ticket: ticketWidget, isEditable: false } };
+        }
+        else if (ticketsWidget) {
+            message.widget = { widgetName: 'Tickets', widgetProps: { tickets: ticketsWidget } };
+        }
         this.addMessage(message);
     }
     processQueue() {
@@ -244,8 +229,8 @@ class LoraClientService {
     stopHeartBeat() {
         window.clearInterval(this.heartBeatInterval);
     }
-    ticketMessageToRequest(message) {
-        return "Update ticket properties from this json: " + JSON.stringify(message.widget?.widgetProps);
+    ticketToRequest(ticket) {
+        return "This ticket looks good please save it now: " + JSON.stringify(ticket);
     }
     static ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: LoraClientService, deps: [], target: i0.ɵɵFactoryTarget.Injectable });
     static ɵprov = i0.ɵɵngDeclareInjectable({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: LoraClientService, providedIn: 'root' });
@@ -347,27 +332,46 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImpo
 
 class EditableFieldComponent {
     value = '';
+    type = 'text';
     isViewOnly = false;
     onChange = new EventEmitter();
     isText() {
-        return typeof this.value === 'string';
+        return this.type === 'text';
     }
     isNumber() {
-        return typeof this.value === 'number';
+        return this.type === 'number';
     }
     isCheckbox() {
-        return typeof this.value === 'boolean';
+        return this.type === 'checkbox';
+    }
+    isDate() {
+        return this.type === 'date';
+    }
+    getFormattedDate() {
+        const date = new Date(this.value);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const formattedDate = `${year}-${month}-${day}`;
+        return formattedDate;
     }
     onInputChange(event) {
         const input = event.target;
-        const newValue = input.type === 'checkbox' ? input.checked : input.value;
+        let newValue = input.type === 'checkbox' ? input.checked : input.value;
+        if (this.isDate()) {
+            const date = new Date(newValue);
+            newValue = date.toISOString();
+        }
         this.onChange.emit(newValue);
     }
     static ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: EditableFieldComponent, deps: [], target: i0.ɵɵFactoryTarget.Component });
-    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "18.2.13", type: EditableFieldComponent, isStandalone: true, selector: "editable-field", inputs: { value: "value", isViewOnly: "isViewOnly" }, outputs: { onChange: "onChange" }, ngImport: i0, template: `
+    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "18.2.13", type: EditableFieldComponent, isStandalone: true, selector: "editable-field", inputs: { value: "value", type: "type", isViewOnly: "isViewOnly" }, outputs: { onChange: "onChange" }, ngImport: i0, template: `
     <div class="editable-field">
       <ng-container *ngIf="isViewOnly">
-        {{ value }}
+        <input *ngIf="isCheckbox()" type="checkbox" class="editable-field__input" [checked]="value" disabled/>
+        <ng-container *ngIf="!isCheckbox()">
+          {{ value }}
+        </ng-container>
       </ng-container>
       <ng-container *ngIf="!isViewOnly">
         <input *ngIf="isText()" type="text" class="editable-field__input" [value]="value"
@@ -376,16 +380,21 @@ class EditableFieldComponent {
                (input)="onInputChange($event)"/>
         <input *ngIf="isCheckbox()" type="checkbox" class="editable-field__input" [checked]="value"
                (change)="onInputChange($event)"/>
+        <input *ngIf="isDate()" type="date" class="editable-field__input" [value]="getFormattedDate()"
+               (change)="onInputChange($event)"/>
       </ng-container>
     </div>
-  `, isInline: true, styles: [".editable-field input[type=checkbox]{margin-left:0}\n"], dependencies: [{ kind: "directive", type: NgIf, selector: "[ngIf]", inputs: ["ngIf", "ngIfThen", "ngIfElse"] }] });
+  `, isInline: true, styles: [".editable-field{word-wrap:break-word}.editable-field input[type=checkbox]{margin-left:0}\n"], dependencies: [{ kind: "directive", type: NgIf, selector: "[ngIf]", inputs: ["ngIf", "ngIfThen", "ngIfElse"] }] });
 }
 i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: EditableFieldComponent, decorators: [{
             type: Component,
             args: [{ selector: 'editable-field', standalone: true, imports: [NgIf], template: `
     <div class="editable-field">
       <ng-container *ngIf="isViewOnly">
-        {{ value }}
+        <input *ngIf="isCheckbox()" type="checkbox" class="editable-field__input" [checked]="value" disabled/>
+        <ng-container *ngIf="!isCheckbox()">
+          {{ value }}
+        </ng-container>
       </ng-container>
       <ng-container *ngIf="!isViewOnly">
         <input *ngIf="isText()" type="text" class="editable-field__input" [value]="value"
@@ -394,10 +403,15 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImpo
                (input)="onInputChange($event)"/>
         <input *ngIf="isCheckbox()" type="checkbox" class="editable-field__input" [checked]="value"
                (change)="onInputChange($event)"/>
+        <input *ngIf="isDate()" type="date" class="editable-field__input" [value]="getFormattedDate()"
+               (change)="onInputChange($event)"/>
       </ng-container>
     </div>
-  `, styles: [".editable-field input[type=checkbox]{margin-left:0}\n"] }]
+  `, styles: [".editable-field{word-wrap:break-word}.editable-field input[type=checkbox]{margin-left:0}\n"] }]
         }], propDecorators: { value: [{
+                type: Input,
+                args: [{ required: true }]
+            }], type: [{
                 type: Input,
                 args: [{ required: true }]
             }], isViewOnly: [{
@@ -410,35 +424,43 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImpo
 class TicketWidgetComponent {
     message;
     loraClientService = inject(LoraClientService);
-    fields = [{ key: 'title', value: 'Title' }, { key: 'description', value: 'Description' }];
-    editableFields = ['completed', 'responsible'];
-    customAttributes = [];
+    widget;
+    fields = [
+        { key: 'title', value: 'Title' },
+        { key: 'description', value: 'Description' },
+        { key: 'dueDate', value: 'Due Date', },
+        { key: 'geo', value: 'Geo Information' },
+        { key: 'responsiblePerson', value: 'Responsible Person' },
+        { key: 'completed', value: 'Completed' }
+    ];
+    editableFieldsMap = new Map([
+        ['completed', 'checkbox'],
+        ['responsiblePerson', 'text'],
+        ['geo', 'text'],
+        ['dueDate', 'date']
+    ]);
+    otherFields = [];
     isSaved = false;
+    isEditable;
     constructor(message) {
         this.message = message;
-        this.customAttributes = Object.entries(this.message?.widget?.widgetProps?.customAttributes || {}).map(([key, value]) => ({
-            key,
-            value
-        }));
-        console.log('TicketWidgetComponent created', this.message?.id);
+        this.widget = this.message?.widget;
+        this.isEditable = this.widget?.widgetProps.isEditable || false;
+        this.otherFields = Object.entries(this.widget?.widgetProps.ticket || {}).filter(([key, value]) => {
+            return !this.fields.map(({ key }) => key).includes(key) && typeof value !== 'object';
+        }).map(([key, value]) => ({ key, value }));
     }
     onClickSave() {
-        this.loraClientService.sendMessage(this.loraClientService.ticketMessageToRequest(this.message), true);
+        this.loraClientService.sendMessage(this.loraClientService.ticketToRequest(this.widget.widgetProps.ticket), true);
         this.isSaved = true;
     }
     getFieldValue(key) {
         //@ts-ignore
-        return this.message?.widget?.widgetProps?.[key] || 'NO VALUE';
+        return this.widget?.widgetProps?.ticket?.[key] || '';
     }
     setFieldValue(key, value) {
         //@ts-ignore
-        this.message.widget.widgetProps[key] = value;
-        console.log('DATA AFTER UPDATE', this.message.widget.widgetProps);
-    }
-    setCustomAttributeValue(key, value) {
-        //@ts-ignore
-        this.message.widget.widgetProps.customAttributes[key] = value;
-        console.log('DATA AFTER UPDATE', this.message.widget.widgetProps);
+        this.widget.widgetProps.ticket[key] = value;
     }
     trackByFn(index, item) {
         return item.key;
@@ -453,25 +475,26 @@ class TicketWidgetComponent {
           <td class="ticket-widget__value">
             <editable-field
               [value]="getFieldValue(field.key)"
-              [isViewOnly]="isSaved"
+              [type]="editableFieldsMap.get(field.key) || 'text'"
+              [isViewOnly]="!isEditable || isSaved"
               (onChange)="setFieldValue(field.key, $event)"
             />
           </td>
         </tr>
       </table>
 
-      <ng-container *ngIf="customAttributes.length > 0">
+      <ng-container *ngIf="otherFields.length > 0">
         <div class="ticket-widget__custom-attributes">
-          <div class="ticket-widget__header">Custom attributes:</div>
-
+          <div class="ticket-widget__header">Other fields:</div>
           <table class="ticket-widget__table">
-            <tr *ngFor="let field of customAttributes">
+            <tr *ngFor="let field of otherFields">
               <td class="ticket-widget__field">{{ field.key }}:</td>
               <td class="ticket-widget__value">
                 <editable-field
                   [value]="field.value"
-                  [isViewOnly]="isSaved || !editableFields.includes(field.key)"
-                  (onChange)="setCustomAttributeValue(field.key, $event)"
+                  [type]="editableFieldsMap.get(field.key) || 'text'"
+                  [isViewOnly]="!isEditable || isSaved || !editableFieldsMap.has(field.key)"
+                  (onChange)="setFieldValue(field.key, $event)"
                 />
               </td>
             </tr>
@@ -479,11 +502,11 @@ class TicketWidgetComponent {
         </div>
       </ng-container>
 
-      <div *ngIf="!isSaved" class="ticket-widget__actions">
+      <div *ngIf="!isSaved && isEditable" class="ticket-widget__actions">
         <button (click)="onClickSave()">{{ 'Save' }}</button>
       </div>
     </div>
-  `, isInline: true, styles: [".ticket-widget{border:1px solid #ccc;padding:16px;border-radius:8px;background-color:#f9f9f9}.ticket-widget__header{font-style:italic;border-bottom:2px solid white;padding-bottom:4px;margin-bottom:4px;font-size:1.2rem;font-weight:700}.ticket-widget__table{border-collapse:collapse}.ticket-widget__field{font-weight:700;vertical-align:top}.ticket-widget__value{padding-left:16px;vertical-align:top}.ticket-widget__custom-attributes{margin-top:8px}.ticket-widget__actions{display:flex;justify-content:flex-end}\n"], dependencies: [{ kind: "directive", type: NgForOf, selector: "[ngFor][ngForOf]", inputs: ["ngForOf", "ngForTrackBy", "ngForTemplate"] }, { kind: "directive", type: NgIf, selector: "[ngIf]", inputs: ["ngIf", "ngIfThen", "ngIfElse"] }, { kind: "component", type: EditableFieldComponent, selector: "editable-field", inputs: ["value", "isViewOnly"], outputs: ["onChange"] }] });
+  `, isInline: true, styles: [".ticket-widget{border:1px solid #ccc;padding:16px;border-radius:8px;margin-top:4px;background-color:#f9f9f9;max-width:100%;overflow:hidden}.ticket-widget__header{font-style:italic;border-bottom:2px solid white;padding-bottom:4px;margin-bottom:4px;font-size:1.2rem;font-weight:700}.ticket-widget__table{border-collapse:collapse;width:100%}.ticket-widget__field{font-weight:700;vertical-align:top;white-space:nowrap}.ticket-widget__value{padding-left:16px;vertical-align:top;width:100%;word-wrap:break-word}.ticket-widget__custom-attributes{margin-top:8px}.ticket-widget__actions{display:flex;justify-content:flex-end}\n"], dependencies: [{ kind: "directive", type: NgForOf, selector: "[ngFor][ngForOf]", inputs: ["ngForOf", "ngForTrackBy", "ngForTemplate"] }, { kind: "directive", type: NgIf, selector: "[ngIf]", inputs: ["ngIf", "ngIfThen", "ngIfElse"] }, { kind: "component", type: EditableFieldComponent, selector: "editable-field", inputs: ["value", "type", "isViewOnly"], outputs: ["onChange"] }] });
 }
 i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: TicketWidgetComponent, decorators: [{
             type: Component,
@@ -496,25 +519,26 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImpo
           <td class="ticket-widget__value">
             <editable-field
               [value]="getFieldValue(field.key)"
-              [isViewOnly]="isSaved"
+              [type]="editableFieldsMap.get(field.key) || 'text'"
+              [isViewOnly]="!isEditable || isSaved"
               (onChange)="setFieldValue(field.key, $event)"
             />
           </td>
         </tr>
       </table>
 
-      <ng-container *ngIf="customAttributes.length > 0">
+      <ng-container *ngIf="otherFields.length > 0">
         <div class="ticket-widget__custom-attributes">
-          <div class="ticket-widget__header">Custom attributes:</div>
-
+          <div class="ticket-widget__header">Other fields:</div>
           <table class="ticket-widget__table">
-            <tr *ngFor="let field of customAttributes">
+            <tr *ngFor="let field of otherFields">
               <td class="ticket-widget__field">{{ field.key }}:</td>
               <td class="ticket-widget__value">
                 <editable-field
                   [value]="field.value"
-                  [isViewOnly]="isSaved || !editableFields.includes(field.key)"
-                  (onChange)="setCustomAttributeValue(field.key, $event)"
+                  [type]="editableFieldsMap.get(field.key) || 'text'"
+                  [isViewOnly]="!isEditable || isSaved || !editableFieldsMap.has(field.key)"
+                  (onChange)="setFieldValue(field.key, $event)"
                 />
               </td>
             </tr>
@@ -522,11 +546,11 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImpo
         </div>
       </ng-container>
 
-      <div *ngIf="!isSaved" class="ticket-widget__actions">
+      <div *ngIf="!isSaved && isEditable" class="ticket-widget__actions">
         <button (click)="onClickSave()">{{ 'Save' }}</button>
       </div>
     </div>
-  `, styles: [".ticket-widget{border:1px solid #ccc;padding:16px;border-radius:8px;background-color:#f9f9f9}.ticket-widget__header{font-style:italic;border-bottom:2px solid white;padding-bottom:4px;margin-bottom:4px;font-size:1.2rem;font-weight:700}.ticket-widget__table{border-collapse:collapse}.ticket-widget__field{font-weight:700;vertical-align:top}.ticket-widget__value{padding-left:16px;vertical-align:top}.ticket-widget__custom-attributes{margin-top:8px}.ticket-widget__actions{display:flex;justify-content:flex-end}\n"] }]
+  `, styles: [".ticket-widget{border:1px solid #ccc;padding:16px;border-radius:8px;margin-top:4px;background-color:#f9f9f9;max-width:100%;overflow:hidden}.ticket-widget__header{font-style:italic;border-bottom:2px solid white;padding-bottom:4px;margin-bottom:4px;font-size:1.2rem;font-weight:700}.ticket-widget__table{border-collapse:collapse;width:100%}.ticket-widget__field{font-weight:700;vertical-align:top;white-space:nowrap}.ticket-widget__value{padding-left:16px;vertical-align:top;width:100%;word-wrap:break-word}.ticket-widget__custom-attributes{margin-top:8px}.ticket-widget__actions{display:flex;justify-content:flex-end}\n"] }]
         }], ctorParameters: () => [{ type: undefined, decorators: [{
                     type: Inject,
                     args: ['message']
@@ -535,7 +559,11 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImpo
 class MessageComponent {
     message;
     partsTableComponent = null;
-    widgetsMap = new Map([['exploreticket', TicketWidgetComponent]]);
+    widgetsMap = new Map([
+        ['TicketSuggestion', TicketWidgetComponent],
+        ['Ticket', TicketWidgetComponent],
+        ['Tickets', TicketsWidgetComponent],
+    ]);
     messageInjector;
     constructor() {
         this.messageInjector = this.createMessageInjector(this.message);
@@ -594,12 +622,12 @@ class MessageComponent {
           <ng-container
             *ngComponentOutlet="getWidgetComponent(); injector: messageInjector"></ng-container>
         </ng-container>
-        <ng-container *ngIf="message.parts && message.parts.length">
+        <ng-container *ngIf="!isWidgetAvailable() && message.parts && message.parts.length">
           <ng-container
             *ngComponentOutlet="partsTableComponent; injector: messageInjector;"/>
         </ng-container>
       </div>
-    </div>`, isInline: true, styles: [".client-message{margin:8px 0;display:flex;flex-direction:column;align-items:flex-start}.client-message__content{background:var(--message-color-1);padding:8px;border-radius:var(--message-border-radius, 16px)}.client-message__content p{padding:0;margin:0}.client-message--own{align-items:flex-end}.client-message--own .client-message__content{background:var(--message-color-2)}\n"], dependencies: [{ kind: "directive", type: NgClass, selector: "[ngClass]", inputs: ["class", "ngClass"] }, { kind: "directive", type: NgComponentOutlet, selector: "[ngComponentOutlet]", inputs: ["ngComponentOutlet", "ngComponentOutletInputs", "ngComponentOutletInjector", "ngComponentOutletContent", "ngComponentOutletNgModule", "ngComponentOutletNgModuleFactory"] }, { kind: "directive", type: NgIf, selector: "[ngIf]", inputs: ["ngIf", "ngIfThen", "ngIfElse"] }], encapsulation: i0.ViewEncapsulation.None });
+    </div>`, isInline: true, styles: [".client-message{margin:8px 0;display:flex;flex-direction:column;align-items:flex-start;overflow:hidden;max-width:100%}.client-message__content{background:var(--message-color-1);padding:8px;border-radius:var(--message-border-radius, 16px);max-width:100%}.client-message__content p{padding:0;margin:0;white-space:break-spaces}.client-message--own{align-items:flex-end}.client-message--own .client-message__content{background:var(--message-color-2)}\n"], dependencies: [{ kind: "directive", type: NgClass, selector: "[ngClass]", inputs: ["class", "ngClass"] }, { kind: "directive", type: NgComponentOutlet, selector: "[ngComponentOutlet]", inputs: ["ngComponentOutlet", "ngComponentOutletInputs", "ngComponentOutletInjector", "ngComponentOutletContent", "ngComponentOutletNgModule", "ngComponentOutletNgModuleFactory"] }, { kind: "directive", type: NgIf, selector: "[ngIf]", inputs: ["ngIf", "ngIfThen", "ngIfElse"] }], encapsulation: i0.ViewEncapsulation.None });
 }
 i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: MessageComponent, decorators: [{
             type: Component,
@@ -612,12 +640,12 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImpo
           <ng-container
             *ngComponentOutlet="getWidgetComponent(); injector: messageInjector"></ng-container>
         </ng-container>
-        <ng-container *ngIf="message.parts && message.parts.length">
+        <ng-container *ngIf="!isWidgetAvailable() && message.parts && message.parts.length">
           <ng-container
             *ngComponentOutlet="partsTableComponent; injector: messageInjector;"/>
         </ng-container>
       </div>
-    </div>`, styles: [".client-message{margin:8px 0;display:flex;flex-direction:column;align-items:flex-start}.client-message__content{background:var(--message-color-1);padding:8px;border-radius:var(--message-border-radius, 16px)}.client-message__content p{padding:0;margin:0}.client-message--own{align-items:flex-end}.client-message--own .client-message__content{background:var(--message-color-2)}\n"] }]
+    </div>`, styles: [".client-message{margin:8px 0;display:flex;flex-direction:column;align-items:flex-start;overflow:hidden;max-width:100%}.client-message__content{background:var(--message-color-1);padding:8px;border-radius:var(--message-border-radius, 16px);max-width:100%}.client-message__content p{padding:0;margin:0;white-space:break-spaces}.client-message--own{align-items:flex-end}.client-message--own .client-message__content{background:var(--message-color-2)}\n"] }]
         }], ctorParameters: () => [], propDecorators: { message: [{
                 type: Input
             }], partsTableComponent: [{
@@ -699,6 +727,7 @@ class LoraClient {
     stylesFile = '';
     partsTableComponent = null;
     onMessage = new EventEmitter();
+    onTicketCreated = new EventEmitter();
     messages = [];
     message = '';
     status = ConnectionStatus.DISCONNECTED;
@@ -759,6 +788,9 @@ class LoraClient {
         if (message.user !== 'me') {
             this.onMessage.emit(message);
         }
+        if (message.widget?.widgetName === "Ticket" && message.widget.widgetProps.ticket) {
+            this.onTicketCreated.emit(message.widget.widgetProps.ticket);
+        }
     }
     onStatus(status) {
         this.status = status;
@@ -769,7 +801,7 @@ class LoraClient {
         this.loraClientService.off('status', this.onStatusListener);
     }
     static ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: LoraClient, deps: [{ token: i1$1.DomSanitizer }], target: i0.ɵɵFactoryTarget.Component });
-    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "18.2.13", type: LoraClient, isStandalone: true, selector: "lora-client", inputs: { token: "token", height: "height", stylesFile: "stylesFile", partsTableComponent: "partsTableComponent" }, outputs: { onMessage: "onMessage" }, ngImport: i0, template: `
+    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "18.2.13", type: LoraClient, isStandalone: true, selector: "lora-client", inputs: { token: "token", height: "height", stylesFile: "stylesFile", partsTableComponent: "partsTableComponent" }, outputs: { onMessage: "onMessage", onTicketCreated: "onTicketCreated" }, ngImport: i0, template: `
     <div class="client__container" [ngStyle]="{height:height+'px'}">
       <ng-container *ngIf="status === ConnectionStatus.CONNECTED">
         <client-messages class="client__messages" [messages]="messages" [partsTableComponent]="partsTableComponent"/>
@@ -851,6 +883,8 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImpo
                 type: Input,
                 args: ['partsTableComponent']
             }], onMessage: [{
+                type: Output
+            }], onTicketCreated: [{
                 type: Output
             }] } });
 

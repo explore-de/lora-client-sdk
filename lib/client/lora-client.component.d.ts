@@ -2,6 +2,7 @@ import { EventEmitter, OnDestroy, OnInit, Type, Injector } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ConnectionStatus } from '../../services/lora-client.service';
 import { ClientMessage } from '../../types/ClientMessage';
+import { TicketInformation } from "@/lora-client/src/types/TicketInformation";
 import * as i0 from "@angular/core";
 export declare class LoraClient implements OnInit, OnDestroy {
     private sanitizer;
@@ -10,6 +11,7 @@ export declare class LoraClient implements OnInit, OnDestroy {
     stylesFile: string;
     partsTableComponent: Type<any> | null;
     onMessage: EventEmitter<ClientMessage>;
+    onTicketCreated: EventEmitter<TicketInformation>;
     messages: ClientMessage[];
     message: string;
     status: ConnectionStatus;
@@ -30,5 +32,5 @@ export declare class LoraClient implements OnInit, OnDestroy {
     onStatus(status: ConnectionStatus): void;
     ngOnDestroy(): void;
     static ɵfac: i0.ɵɵFactoryDeclaration<LoraClient, never>;
-    static ɵcmp: i0.ɵɵComponentDeclaration<LoraClient, "lora-client", never, { "token": { "alias": "token"; "required": false; }; "height": { "alias": "height"; "required": false; }; "stylesFile": { "alias": "stylesFile"; "required": false; }; "partsTableComponent": { "alias": "partsTableComponent"; "required": false; }; }, { "onMessage": "onMessage"; }, never, never, true, never>;
+    static ɵcmp: i0.ɵɵComponentDeclaration<LoraClient, "lora-client", never, { "token": { "alias": "token"; "required": false; }; "height": { "alias": "height"; "required": false; }; "stylesFile": { "alias": "stylesFile"; "required": false; }; "partsTableComponent": { "alias": "partsTableComponent"; "required": false; }; }, { "onMessage": "onMessage"; "onTicketCreated": "onTicketCreated"; }, never, never, true, never>;
 }

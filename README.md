@@ -49,6 +49,23 @@ The default height will be 500px, but you can change it by setting `[height]` pr
 />
 ```
 
+### Subscribing for the 'ticket created' event
+
+You can subscribe for the 'ticket created' event by adding event listener to the client component:
+
+```typescript jsx
+
+function onTicketCreated(ticket: TicketInformation) {
+  console.log('Ticket created:', ticket);
+}
+```
+
+```angular2html
+
+<lora-client (onTicketCreated)="onTicketCreated($event)"/>
+
+```
+
 ### Using service directly without using client-component
 
 You can use service directly without using client-component:

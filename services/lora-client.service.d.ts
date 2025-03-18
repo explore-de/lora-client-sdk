@@ -1,4 +1,5 @@
 import { ClientMessage } from "../types/ClientMessage";
+import { TicketInformation } from "@/lora-client/src/types/TicketInformation";
 import * as i0 from "@angular/core";
 export declare enum ConnectionStatus {
     DISCONNECTED = "disconnected",
@@ -42,7 +43,7 @@ export declare class LoraClientService {
     private sendHeartBeat;
     private startHeartBeat;
     private stopHeartBeat;
-    ticketMessageToRequest(message: ClientMessage): string;
+    ticketToRequest(ticket: TicketInformation): string;
     static ɵfac: i0.ɵɵFactoryDeclaration<LoraClientService, never>;
     static ɵprov: i0.ɵɵInjectableDeclaration<LoraClientService>;
 }

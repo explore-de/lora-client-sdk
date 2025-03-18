@@ -1,23 +1,19 @@
 import { ClientMessage } from '../../../types/ClientMessage';
+import { KeyValue, KeyValueScalar } from '../../../types/KeyValue';
 import * as i0 from "@angular/core";
 export declare class TicketWidgetComponent {
     message: ClientMessage;
     private loraClientService;
-    readonly fields: {
-        key: string;
-        value: string;
-    }[];
-    readonly editableFields: string[];
-    customAttributes: {
-        key: string;
-        value: string | number | boolean;
-    }[];
+    private widget?;
+    readonly fields: KeyValue<string>[];
+    readonly editableFieldsMap: Map<string, "number" | "text" | "date" | "checkbox">;
+    otherFields: KeyValueScalar[];
     isSaved: boolean;
+    isEditable: boolean;
     constructor(message: ClientMessage);
     onClickSave(): void;
     getFieldValue(key: string): string;
     setFieldValue(key: string, value: string | number | boolean): void;
-    setCustomAttributeValue(key: string, value: string | number | boolean): void;
     trackByFn(index: number, item: {
         key: string;
     }): string;
