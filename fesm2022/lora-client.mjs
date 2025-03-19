@@ -3,7 +3,6 @@ import { Injectable, EventEmitter, ViewChild, Output, Input, ViewEncapsulation, 
 import { NgIf, NgForOf, NgClass, NgComponentOutlet, NgStyle, NgFor } from '@angular/common';
 import * as i1 from '@angular/forms';
 import { FormsModule } from '@angular/forms';
-import { TicketsWidgetComponent } from '@/lora-client/src/lib/widgets/tickets-widget/tickets-widget.component';
 import * as i1$1 from '@angular/platform-browser';
 
 class ClientError extends Error {
@@ -551,6 +550,47 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImpo
       </div>
     </div>
   `, styles: [".ticket-widget{border:1px solid #ccc;padding:16px;border-radius:8px;margin-top:4px;background-color:#f9f9f9;max-width:100%;overflow:hidden}.ticket-widget__header{font-style:italic;border-bottom:2px solid white;padding-bottom:4px;margin-bottom:4px;font-size:1.2rem;font-weight:700}.ticket-widget__table{border-collapse:collapse;width:100%}.ticket-widget__field{font-weight:700;vertical-align:top;white-space:nowrap}.ticket-widget__value{padding-left:16px;vertical-align:top;width:100%;word-wrap:break-word}.ticket-widget__custom-attributes{margin-top:8px}.ticket-widget__actions{display:flex;justify-content:flex-end}\n"] }]
+        }], ctorParameters: () => [{ type: undefined, decorators: [{
+                    type: Inject,
+                    args: ['message']
+                }] }] });
+
+class TicketsWidgetComponent {
+    message;
+    widget;
+    tickets = [];
+    constructor(message) {
+        this.message = message;
+        this.widget = this.message?.widget;
+        this.tickets = this.widget?.widgetProps.tickets || [];
+    }
+    trackByFn(index, item) {
+        return item.id;
+    }
+    static ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: TicketsWidgetComponent, deps: [{ token: 'message' }], target: i0.ɵɵFactoryTarget.Component });
+    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "18.2.13", type: TicketsWidgetComponent, isStandalone: true, selector: "tickets-widget", ngImport: i0, template: `
+    <div class="tickets-widget">
+      <ng-container *ngFor="let ticket of tickets; trackBy: trackByFn">
+        <div class="tickets-widget__ticket">
+          <div class="tickets-widget__ticket-id">{{ ticket.id }}</div>
+          <div class="tickets-widget__ticket-title">{{ ticket.title }}</div>
+        </div>
+      </ng-container>
+    </div>
+  `, isInline: true, styles: [".tickets-widget{border:1px solid #ccc;padding:16px;border-radius:8px;margin-top:4px;background-color:#f9f9f9;max-width:100%;display:flex;flex-direction:column}.tickets-widget__ticket{display:flex;gap:8px;padding:4px 0}.tickets-widget__ticket-id{font-weight:700}\n"], dependencies: [{ kind: "directive", type: NgForOf, selector: "[ngFor][ngForOf]", inputs: ["ngForOf", "ngForTrackBy", "ngForTemplate"] }] });
+}
+i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: TicketsWidgetComponent, decorators: [{
+            type: Component,
+            args: [{ selector: 'tickets-widget', standalone: true, imports: [NgForOf, NgIf], template: `
+    <div class="tickets-widget">
+      <ng-container *ngFor="let ticket of tickets; trackBy: trackByFn">
+        <div class="tickets-widget__ticket">
+          <div class="tickets-widget__ticket-id">{{ ticket.id }}</div>
+          <div class="tickets-widget__ticket-title">{{ ticket.title }}</div>
+        </div>
+      </ng-container>
+    </div>
+  `, styles: [".tickets-widget{border:1px solid #ccc;padding:16px;border-radius:8px;margin-top:4px;background-color:#f9f9f9;max-width:100%;display:flex;flex-direction:column}.tickets-widget__ticket{display:flex;gap:8px;padding:4px 0}.tickets-widget__ticket-id{font-weight:700}\n"] }]
         }], ctorParameters: () => [{ type: undefined, decorators: [{
                     type: Inject,
                     args: ['message']
