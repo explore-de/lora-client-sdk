@@ -1,6 +1,6 @@
 {
   "name": "lora-client",
-  "version": "0.3.0-alpha",
+  "version": "0.3.0",
   "description": "Angular Library for Lora client",
   "author": "Kostyantyn Zamurnyak",
   "license": "MIT",
