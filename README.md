@@ -26,13 +26,25 @@ import {LoraClient} from 'lora-client'
 
 ## 3. Render component with required props
 
+**Template**
 ```angular2html
-
 <lora-client
-  [token]="apiToken"
+  [serviceUrl]="serviceUrl"
+  [authHeaderSupplier]="authHeaderSupplier"
 />
 ```
 
+**Script**
+```typescript
+@Component({
+  // ...
+})
+class LoraClientExample {
+  serviceUrl = "https://lora.deployment.com/api/lora";
+  authHeaderSupplier = () => `Bearer ${this.access_token}`;
+  // ...
+}
+```
 ___
 
 ## Examples
@@ -44,7 +56,8 @@ The default height will be 500px, but you can change it by setting `[height]` pr
 ```angular2html
 
 <lora-client
-  [token]="apiToken"
+  [serviceUrl]="serviceUrl"
+  [authHeaderSupplier]="authHeaderSupplier"
   [height]="700"
 />
 ```
@@ -77,8 +90,10 @@ import {ClientMessage} from "./ClientMessage";
 async function connect() {
   // create service instance
   const loraClientService = new LoraClientService();
+  loraClientService.setServiceUrl("https://lora.deployment.com/api/lora");
+  loraClientService.setAuthHeaderSupplier(() => `Bearer myauthtoken`);
   // create new session (also you can reuse sessionId by storing it in local storage as example)
-  const sessionId = await loraClientService.createSession(apiToken);
+  const sessionId = await loraClientService.createSession();
   // you can get old messages history
   const oldMessages = await loraClientService.getMessagesHistory(sessionId);
 
@@ -210,3 +225,40 @@ custom css file example:
   color: black !important;
 }
 ```
+
+## CSS classes
+
+The following CSS classes and selectors are defined in Lora Client:
+
+- `.client`
+- `.client__container`
+- `.client__status`
+- `.client__messages`
+- `.client__input`
+- `.client__input-message`
+- `.client__error`
+- `.client__error-message`
+- `.client__error-actions`
+- `.client::-webkit-scrollbar`
+- `.client::-webkit-scrollbar-track`
+- `.client::-webkit-scrollbar-thumb`
+- `.client::-webkit-scrollbar-button`
+- `.client-messages`
+- `.client-messages__inner`
+- `.client-message-send`
+- `.client-message-send__icon`
+- `.client-message`
+- `.client-message__content`
+- `.client-message--own`
+- `.client__message-input__textarea`
+- `.ticket-widget`
+- `.ticket-widget__header`
+- `.ticket-widget__table`
+- `.ticket-widget__field`
+- `.ticket-widget__value`
+- `.ticket-widget__custom-attributes`
+- `.ticket-widget__actions`
+- `.tickets-widget`
+- `.tickets-widget__ticket`
+- `.tickets-widget__ticket-id`
+- `.editable-field`

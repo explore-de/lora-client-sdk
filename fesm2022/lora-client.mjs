@@ -25,7 +25,18 @@ var MessageStatus;
 })(MessageStatus || (MessageStatus = {}));
 const HEARTBEAT_INTERVAL = 12000;
 class LoraClientService {
-    serviceUrl = 'https://feynsinn.explore.de/api/lora';
+    serviceUrl;
+    //private serviceUrl = 'http://localhost:8081/api/lora';
+    setServiceUrl(url) {
+        if (!/^https?:\/\/.*/.test(url) || !url) {
+            throw new ClientError('Service URL must be a valid URL, got: ' + url);
+        }
+        this.serviceUrl = url;
+    }
+    authHeaderSupplier;
+    setAuthHeaderSupplier(supplier) {
+        this.authHeaderSupplier = supplier;
+    }
     url = undefined;
     socket = null;
     isConnected = false;
@@ -34,14 +45,21 @@ class LoraClientService {
     messagesQueue = [];
     listeners = {};
     heartBeatInterval = 0;
-    async createSession(token) {
-        const options = { headers: { 'x-api-token': token } };
+    async createSession() {
+        this.checkServiceUrl();
+        const options = { headers: { 'Authorization': this.getAuthHeader() } };
         const response = await window.fetch(`${this.serviceUrl}/session`, options);
-        return response.status === 200 ? await response.text() : undefined;
+        if (response.status !== 200) {
+            throw new ClientError(`Failed to create session, status: ${response.status}`);
+        }
+        return response.text();
     }
     async connect(options) {
+        this.checkServiceUrl();
         const sessionId = options.sessionId;
-        this.url = (options.url ?? `${this.serviceUrl}/chat/${sessionId}`).replace('https://', 'wss://').replace('http://', 'ws://');
+        this.url = (options.url ?? `${this.serviceUrl}/chat/${sessionId}`)
+            .replace('https://', 'wss://')
+            .replace('http://', 'ws://');
         if (!sessionId) {
             throw new ClientError('Can not start connection: session id not set.');
         }
@@ -67,7 +85,7 @@ class LoraClientService {
             }
             this.socket = new WebSocket(this.url);
             this.socket.onopen = () => {
-                oldMessages.forEach(message => this.addMessage(message));
+                oldMessages.forEach((message) => this.addMessage(message));
                 this.isConnected = true;
                 this.startHeartBeat();
                 this.emitStatus(ConnectionStatus.CONNECTED);
@@ -98,7 +116,7 @@ class LoraClientService {
         return promise;
     }
     async getMessagesHistory(sessionId) {
-        const response = await window.fetch(`${this.serviceUrl}/${sessionId}/messages`);
+        const response = await window.fetch(`${this.serviceUrl}/${sessionId}/messages`, { headers: { 'Authorization': this.getAuthHeader() } });
         const data = await response.json();
         const messages = (data || []).map((item) => {
             const message = {
@@ -106,7 +124,7 @@ class LoraClientService {
                 user: item.loraMessage ? 'lora' : 'me',
                 content: item.text,
                 time: item.creationDate,
-                parts: item.parts
+                parts: item.parts,
             };
             return message;
         });
@@ -134,18 +152,31 @@ class LoraClientService {
         catch (e) {
             content = data;
         }
-        const message = { id: crypto.randomUUID(), user: 'lora', content, parts, time: Date.now() };
-        if (ticketSuggestionWidget && Object.keys(ticketSuggestionWidget).length > 0) {
+        const message = {
+            id: crypto.randomUUID(),
+            user: 'lora',
+            content,
+            parts,
+            time: Date.now(),
+        };
+        if (ticketSuggestionWidget &&
+            Object.keys(ticketSuggestionWidget).length > 0) {
             message.widget = {
                 widgetName: 'TicketSuggestion',
-                widgetProps: { ticket: ticketSuggestionWidget, isEditable: true }
+                widgetProps: { ticket: ticketSuggestionWidget, isEditable: true },
             };
         }
         else if (ticketWidget && Object.keys(ticketWidget).length > 0) {
-            message.widget = { widgetName: 'Ticket', widgetProps: { ticket: ticketWidget, isEditable: false } };
+            message.widget = {
+                widgetName: 'Ticket',
+                widgetProps: { ticket: ticketWidget, isEditable: false },
+            };
         }
         else if (ticketsWidget) {
-            message.widget = { widgetName: 'Tickets', widgetProps: { tickets: ticketsWidget } };
+            message.widget = {
+                widgetName: 'Tickets',
+                widgetProps: { tickets: ticketsWidget },
+            };
         }
         this.addMessage(message);
     }
@@ -154,7 +185,12 @@ class LoraClientService {
         if (!message)
             return;
         if (!message.silent) {
-            this.addMessage({ id: crypto.randomUUID(), user: 'me', time: Date.now(), content: message.content });
+            this.addMessage({
+                id: crypto.randomUUID(),
+                user: 'me',
+                time: Date.now(),
+                content: message.content,
+            });
         }
         this.socket?.send(message?.content);
         message.status = MessageStatus.Sent;
@@ -165,7 +201,7 @@ class LoraClientService {
             id,
             silent,
             content: message,
-            status: MessageStatus.Pending
+            status: MessageStatus.Pending,
         });
     }
     addMessage(message) {
@@ -173,7 +209,7 @@ class LoraClientService {
         this.emitMessage(message);
     }
     emitMessage(message) {
-        this.listeners.message?.forEach(listener => {
+        this.listeners.message?.forEach((listener) => {
             try {
                 listener(message);
             }
@@ -183,7 +219,7 @@ class LoraClientService {
         });
     }
     emitStatus(status) {
-        this.listeners.status?.forEach(listener => {
+        this.listeners.status?.forEach((listener) => {
             try {
                 listener(status);
             }
@@ -212,7 +248,7 @@ class LoraClientService {
         this.messages = [];
         this.messagesQueue = [];
         if (this.socket) {
-            this.socket.close(1000, "Closed by client");
+            this.socket.close(1000, 'Closed by client');
         }
     }
     sendHeartBeat() {
@@ -229,7 +265,15 @@ class LoraClientService {
         window.clearInterval(this.heartBeatInterval);
     }
     ticketToRequest(ticket) {
-        return "This ticket looks good please save it now: " + JSON.stringify(ticket);
+        return ('This ticket looks good please save it now: ' + JSON.stringify(ticket));
+    }
+    checkServiceUrl() {
+        if (!this.serviceUrl) {
+            throw new ClientError('Service URL is not set.');
+        }
+    }
+    getAuthHeader() {
+        return this.authHeaderSupplier?.() ?? '';
     }
     static ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: LoraClientService, deps: [], target: i0.ɵɵFactoryTarget.Injectable });
     static ɵprov = i0.ɵɵngDeclareInjectable({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: LoraClientService, providedIn: 'root' });
@@ -237,7 +281,7 @@ class LoraClientService {
 i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: LoraClientService, decorators: [{
             type: Injectable,
             args: [{
-                    providedIn: 'root'
+                    providedIn: 'root',
                 }]
         }] });
 
@@ -762,10 +806,16 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImpo
 
 class LoraClient {
     sanitizer;
-    token = '';
     height = 500;
     stylesFile = '';
     partsTableComponent = null;
+    set serviceUrl(value) {
+        this.loraClientService.setServiceUrl(value);
+    }
+    set authHeaderSupplier(value) {
+        this.loraClientService.setAuthHeaderSupplier(value);
+    }
+    ;
     onMessage = new EventEmitter();
     onTicketCreated = new EventEmitter();
     messages = [];
@@ -783,8 +833,10 @@ class LoraClient {
         this.loraClientService.on('message', this.onMessageListener);
         this.loraClientService.on('status', this.onStatusListener);
     }
-    ngOnInit() {
-        this.connect().then();
+    async ngOnInit() {
+        if (this.status === ConnectionStatus.DISCONNECTED) {
+            this.connect();
+        }
         if (this.stylesFile) {
             this.sanitizedStylesFile = this.sanitizer.bypassSecurityTrustResourceUrl(this.stylesFile);
         }
@@ -792,21 +844,24 @@ class LoraClient {
     async connect() {
         this.status = ConnectionStatus.CONNECTING;
         try {
-            const sessionId = localStorage.getItem('LORA_CLIENT_SESSION_ID') || await this.loraClientService.createSession(this.token);
+            const sessionId = localStorage.getItem('LORA_CLIENT_SESSION_ID') ||
+                (await this.loraClientService.createSession());
             if (!sessionId) {
-                console.error("Failed to receive session id");
-                this.status = ConnectionStatus.ERROR;
-                return;
+                throw Error('Failed to receive session id');
             }
             await this.loraClientService.connect({ sessionId, loadHistory: false });
         }
         catch (e) {
-            console.error(e);
+            console.error('Connection error:', e);
             this.status = ConnectionStatus.ERROR;
         }
     }
     createInjector() {
-        return Injector.create({ providers: [{ provide: 'partsTableComponent', useValue: this.partsTableComponent }] });
+        return Injector.create({
+            providers: [
+                { provide: 'partsTableComponent', useValue: this.partsTableComponent },
+            ],
+        });
     }
     sendMessage() {
         if (this.message.trim()) {
@@ -821,14 +876,15 @@ class LoraClient {
         this.sendMessage();
     }
     onClickReconnect() {
-        this.connect().then();
+        this.connect();
     }
     onMessageReceived(message) {
         this.messages = this.loraClientService.getMessages();
         if (message.user !== 'me') {
             this.onMessage.emit(message);
         }
-        if (message.widget?.widgetName === "Ticket" && message.widget.widgetProps.ticket) {
+        if (message.widget?.widgetName === 'Ticket' &&
+            message.widget.widgetProps.ticket) {
             this.onTicketCreated.emit(message.widget.widgetProps.ticket);
         }
     }
@@ -841,79 +897,114 @@ class LoraClient {
         this.loraClientService.off('status', this.onStatusListener);
     }
     static ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: LoraClient, deps: [{ token: i1$1.DomSanitizer }], target: i0.ɵɵFactoryTarget.Component });
-    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "18.2.13", type: LoraClient, isStandalone: true, selector: "lora-client", inputs: { token: "token", height: "height", stylesFile: "stylesFile", partsTableComponent: "partsTableComponent" }, outputs: { onMessage: "onMessage", onTicketCreated: "onTicketCreated" }, ngImport: i0, template: `
-    <div class="client__container" [ngStyle]="{height:height+'px'}">
-      <ng-container *ngIf="status === ConnectionStatus.CONNECTED">
-        <client-messages class="client__messages" [messages]="messages" [partsTableComponent]="partsTableComponent"/>
+    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "18.2.13", type: LoraClient, isStandalone: true, selector: "lora-client", inputs: { height: "height", stylesFile: "stylesFile", partsTableComponent: "partsTableComponent", serviceUrl: "serviceUrl", authHeaderSupplier: "authHeaderSupplier" }, outputs: { onMessage: "onMessage", onTicketCreated: "onTicketCreated" }, ngImport: i0, template: `<div
+    class="client__container"
+    [ngStyle]="{ height: height + 'px' }"
+  >
+    <ng-container *ngIf="status === ConnectionStatus.CONNECTED">
+      <client-messages
+        class="client__messages"
+        [messages]="messages"
+        [partsTableComponent]="partsTableComponent"
+      />
 
-        <div class="client__input">
-          <client-message-input
-            class="client__input-message"
-            [message]="message"
-            (onMessageChanged)="onMessageChanged($event)"
-            (onEnterPressed)="onEnterPressed()"
-          />
+      <div class="client__input">
+        <client-message-input
+          class="client__input-message"
+          [message]="message"
+          (onMessageChanged)="onMessageChanged($event)"
+          (onEnterPressed)="onEnterPressed()"
+        />
 
-          <client-message-send class="client__input-submit" (onClickSend)="sendMessage()"/>
-        </div>
-      </ng-container>
-      <ng-container *ngIf="status===ConnectionStatus.DISCONNECTED">
-        <div class="client__status">Disconnected</div>
-      </ng-container>
-      <ng-container *ngIf="status===ConnectionStatus.CONNECTING">
-        <div class="client__status">Connecting...</div>
-      </ng-container>
-      <ng-container *ngIf="status===ConnectionStatus.ERROR">
-        <div class="client__status">
-          <div>Connection Failed</div>
-          <div>
-
+        <client-message-send
+          class="client__input-submit"
+          (onClickSend)="sendMessage()"
+        />
+      </div>
+    </ng-container>
+    <ng-container *ngIf="status === ConnectionStatus.DISCONNECTED">
+      <div class="client__status">Disconnected</div>
+    </ng-container>
+    <ng-container *ngIf="status === ConnectionStatus.CONNECTING">
+      <div class="client__status">Connecting...</div>
+    </ng-container>
+    <ng-container *ngIf="status === ConnectionStatus.ERROR">
+      <div class="client__status">
+        <div class="client__error">
+          <div class="client__error-message">Connection failed. Please try again.</div>
+          <div class="client__error-actions">
             <button (click)="onClickReconnect()">Try again</button>
           </div>
         </div>
-      </ng-container>
-      <link *ngIf="sanitizedStylesFile" rel="stylesheet" type="text/css" [href]="sanitizedStylesFile"/>
-    </div>`, isInline: true, styles: [":host{--background: var(--lora-client__background, transparent);--button-main-color: var(--lora-client__button-main-color, #000000);--button-text-color: var(--lora-client__button-text-color, #fff);--button-hover-color: var(--lora-client__button-hover-color, #3f3f3f);--button-active-color: var(--lora-client__button-active-color, #5b5b5b);--message-border-radius: var(--lora-client__message-border-radius, 16px);--message-color-1: var(--lora-client__message-color-1, #efefef);--message-color-2: var(--lora-client__message-color-2, #a6e4e7)}.client__container{display:flex;flex-direction:column;background:var(--background)}.client__container *{box-sizing:border-box}.client__status{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center}.client__status button{background:var(--button-main-color);color:var(--button-text-color);margin-top:8px;padding:8px;border:none;cursor:pointer}.client__status button:hover{background:var(--button-hover-color)}.client__status button:active{background:var(--button-active-color)}.client__messages{display:block;border:1px solid #dcdcdc;border-bottom:none;height:100%;flex-grow:1;flex-shrink:1;overflow:hidden}.client__input{border:1px solid #dcdcdc;border-top:none;display:flex;flex-direction:row;flex-grow:0;flex-shrink:0}.client__input-message{flex-grow:1;padding:4px}.client::-webkit-scrollbar{background-color:#fff;width:16px}.client::-webkit-scrollbar-track{background-color:#fff}.client::-webkit-scrollbar-track:hover{background-color:#f4f4f4}.client::-webkit-scrollbar-thumb{background-color:#babac0;border-radius:16px;border:5px solid #fff}.client::-webkit-scrollbar-thumb:hover{background-color:#a0a0a5;border:4px solid #f4f4f4}.client::-webkit-scrollbar-button{display:none}\n"], dependencies: [{ kind: "component", type: ClientMessageInputComponent, selector: "client-message-input", inputs: ["message"], outputs: ["onMessageChanged", "onEnterPressed"] }, { kind: "component", type: MessageSendComponent, selector: "client-message-send", outputs: ["onClickSend"] }, { kind: "component", type: MessagesComponent, selector: "client-messages", inputs: ["messages", "partsTableComponent"] }, { kind: "directive", type: NgStyle, selector: "[ngStyle]", inputs: ["ngStyle"] }, { kind: "directive", type: NgIf, selector: "[ngIf]", inputs: ["ngIf", "ngIfThen", "ngIfElse"] }], encapsulation: i0.ViewEncapsulation.ShadowDom });
+      </div>
+    </ng-container>
+    <link
+      *ngIf="sanitizedStylesFile"
+      rel="stylesheet"
+      type="text/css"
+      [href]="sanitizedStylesFile"
+    />
+  </div>`, isInline: true, styles: [":host{--background: var(--lora-client__background, transparent);--button-main-color: var(--lora-client__button-main-color, #000000);--button-text-color: var(--lora-client__button-text-color, #fff);--button-hover-color: var(--lora-client__button-hover-color, #3f3f3f);--button-active-color: var(--lora-client__button-active-color, #5b5b5b);--message-border-radius: var(--lora-client__message-border-radius, 16px);--message-color-1: var(--lora-client__message-color-1, #efefef);--message-color-2: var(--lora-client__message-color-2, #a6e4e7)}.client__container{display:flex;flex-direction:column;background:var(--background)}.client__container *{box-sizing:border-box}.client__status{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center}.client__status button{background:var(--button-main-color);color:var(--button-text-color);margin-top:8px;padding:8px;border:none;cursor:pointer}.client__status button:hover{background:var(--button-hover-color)}.client__status button:active{background:var(--button-active-color)}.client__messages{display:block;border:1px solid #dcdcdc;border-bottom:none;height:100%;flex-grow:1;flex-shrink:1;overflow:hidden}.client__input{border:1px solid #dcdcdc;border-top:none;display:flex;flex-direction:row;flex-grow:0;flex-shrink:0}.client__input-message{flex-grow:1;padding:4px}.client::-webkit-scrollbar{background-color:#fff;width:16px}.client::-webkit-scrollbar-track{background-color:#fff}.client::-webkit-scrollbar-track:hover{background-color:#f4f4f4}.client::-webkit-scrollbar-thumb{background-color:#babac0;border-radius:16px;border:5px solid #fff}.client::-webkit-scrollbar-thumb:hover{background-color:#a0a0a5;border:4px solid #f4f4f4}.client::-webkit-scrollbar-button{display:none}.client__error{max-width:360px;text-align:center;font-family:Arial,sans-serif}.client__error-message{font-size:14px;margin-bottom:12px}.client__error-actions button+button{margin-left:8px}\n"], dependencies: [{ kind: "component", type: ClientMessageInputComponent, selector: "client-message-input", inputs: ["message"], outputs: ["onMessageChanged", "onEnterPressed"] }, { kind: "component", type: MessageSendComponent, selector: "client-message-send", outputs: ["onClickSend"] }, { kind: "component", type: MessagesComponent, selector: "client-messages", inputs: ["messages", "partsTableComponent"] }, { kind: "directive", type: NgStyle, selector: "[ngStyle]", inputs: ["ngStyle"] }, { kind: "directive", type: NgIf, selector: "[ngIf]", inputs: ["ngIf", "ngIfThen", "ngIfElse"] }], encapsulation: i0.ViewEncapsulation.ShadowDom });
 }
 i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: LoraClient, decorators: [{
             type: Component,
-            args: [{ selector: 'lora-client', standalone: true, imports: [NgFor, ClientMessageInputComponent, MessageSendComponent, MessagesComponent, NgStyle, NgIf, NgComponentOutlet], encapsulation: ViewEncapsulation.ShadowDom, template: `
-    <div class="client__container" [ngStyle]="{height:height+'px'}">
-      <ng-container *ngIf="status === ConnectionStatus.CONNECTED">
-        <client-messages class="client__messages" [messages]="messages" [partsTableComponent]="partsTableComponent"/>
+            args: [{ selector: 'lora-client', standalone: true, imports: [
+                        NgFor,
+                        ClientMessageInputComponent,
+                        MessageSendComponent,
+                        MessagesComponent,
+                        NgStyle,
+                        NgIf,
+                        NgComponentOutlet,
+                    ], encapsulation: ViewEncapsulation.ShadowDom, template: `<div
+    class="client__container"
+    [ngStyle]="{ height: height + 'px' }"
+  >
+    <ng-container *ngIf="status === ConnectionStatus.CONNECTED">
+      <client-messages
+        class="client__messages"
+        [messages]="messages"
+        [partsTableComponent]="partsTableComponent"
+      />
 
-        <div class="client__input">
-          <client-message-input
-            class="client__input-message"
-            [message]="message"
-            (onMessageChanged)="onMessageChanged($event)"
-            (onEnterPressed)="onEnterPressed()"
-          />
+      <div class="client__input">
+        <client-message-input
+          class="client__input-message"
+          [message]="message"
+          (onMessageChanged)="onMessageChanged($event)"
+          (onEnterPressed)="onEnterPressed()"
+        />
 
-          <client-message-send class="client__input-submit" (onClickSend)="sendMessage()"/>
-        </div>
-      </ng-container>
-      <ng-container *ngIf="status===ConnectionStatus.DISCONNECTED">
-        <div class="client__status">Disconnected</div>
-      </ng-container>
-      <ng-container *ngIf="status===ConnectionStatus.CONNECTING">
-        <div class="client__status">Connecting...</div>
-      </ng-container>
-      <ng-container *ngIf="status===ConnectionStatus.ERROR">
-        <div class="client__status">
-          <div>Connection Failed</div>
-          <div>
-
+        <client-message-send
+          class="client__input-submit"
+          (onClickSend)="sendMessage()"
+        />
+      </div>
+    </ng-container>
+    <ng-container *ngIf="status === ConnectionStatus.DISCONNECTED">
+      <div class="client__status">Disconnected</div>
+    </ng-container>
+    <ng-container *ngIf="status === ConnectionStatus.CONNECTING">
+      <div class="client__status">Connecting...</div>
+    </ng-container>
+    <ng-container *ngIf="status === ConnectionStatus.ERROR">
+      <div class="client__status">
+        <div class="client__error">
+          <div class="client__error-message">Connection failed. Please try again.</div>
+          <div class="client__error-actions">
             <button (click)="onClickReconnect()">Try again</button>
           </div>
         </div>
-      </ng-container>
-      <link *ngIf="sanitizedStylesFile" rel="stylesheet" type="text/css" [href]="sanitizedStylesFile"/>
-    </div>`, styles: [":host{--background: var(--lora-client__background, transparent);--button-main-color: var(--lora-client__button-main-color, #000000);--button-text-color: var(--lora-client__button-text-color, #fff);--button-hover-color: var(--lora-client__button-hover-color, #3f3f3f);--button-active-color: var(--lora-client__button-active-color, #5b5b5b);--message-border-radius: var(--lora-client__message-border-radius, 16px);--message-color-1: var(--lora-client__message-color-1, #efefef);--message-color-2: var(--lora-client__message-color-2, #a6e4e7)}.client__container{display:flex;flex-direction:column;background:var(--background)}.client__container *{box-sizing:border-box}.client__status{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center}.client__status button{background:var(--button-main-color);color:var(--button-text-color);margin-top:8px;padding:8px;border:none;cursor:pointer}.client__status button:hover{background:var(--button-hover-color)}.client__status button:active{background:var(--button-active-color)}.client__messages{display:block;border:1px solid #dcdcdc;border-bottom:none;height:100%;flex-grow:1;flex-shrink:1;overflow:hidden}.client__input{border:1px solid #dcdcdc;border-top:none;display:flex;flex-direction:row;flex-grow:0;flex-shrink:0}.client__input-message{flex-grow:1;padding:4px}.client::-webkit-scrollbar{background-color:#fff;width:16px}.client::-webkit-scrollbar-track{background-color:#fff}.client::-webkit-scrollbar-track:hover{background-color:#f4f4f4}.client::-webkit-scrollbar-thumb{background-color:#babac0;border-radius:16px;border:5px solid #fff}.client::-webkit-scrollbar-thumb:hover{background-color:#a0a0a5;border:4px solid #f4f4f4}.client::-webkit-scrollbar-button{display:none}\n"] }]
-        }], ctorParameters: () => [{ type: i1$1.DomSanitizer }], propDecorators: { token: [{
-                type: Input,
-                args: ['token']
-            }], height: [{
+      </div>
+    </ng-container>
+    <link
+      *ngIf="sanitizedStylesFile"
+      rel="stylesheet"
+      type="text/css"
+      [href]="sanitizedStylesFile"
+    />
+  </div>`, styles: [":host{--background: var(--lora-client__background, transparent);--button-main-color: var(--lora-client__button-main-color, #000000);--button-text-color: var(--lora-client__button-text-color, #fff);--button-hover-color: var(--lora-client__button-hover-color, #3f3f3f);--button-active-color: var(--lora-client__button-active-color, #5b5b5b);--message-border-radius: var(--lora-client__message-border-radius, 16px);--message-color-1: var(--lora-client__message-color-1, #efefef);--message-color-2: var(--lora-client__message-color-2, #a6e4e7)}.client__container{display:flex;flex-direction:column;background:var(--background)}.client__container *{box-sizing:border-box}.client__status{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center}.client__status button{background:var(--button-main-color);color:var(--button-text-color);margin-top:8px;padding:8px;border:none;cursor:pointer}.client__status button:hover{background:var(--button-hover-color)}.client__status button:active{background:var(--button-active-color)}.client__messages{display:block;border:1px solid #dcdcdc;border-bottom:none;height:100%;flex-grow:1;flex-shrink:1;overflow:hidden}.client__input{border:1px solid #dcdcdc;border-top:none;display:flex;flex-direction:row;flex-grow:0;flex-shrink:0}.client__input-message{flex-grow:1;padding:4px}.client::-webkit-scrollbar{background-color:#fff;width:16px}.client::-webkit-scrollbar-track{background-color:#fff}.client::-webkit-scrollbar-track:hover{background-color:#f4f4f4}.client::-webkit-scrollbar-thumb{background-color:#babac0;border-radius:16px;border:5px solid #fff}.client::-webkit-scrollbar-thumb:hover{background-color:#a0a0a5;border:4px solid #f4f4f4}.client::-webkit-scrollbar-button{display:none}.client__error{max-width:360px;text-align:center;font-family:Arial,sans-serif}.client__error-message{font-size:14px;margin-bottom:12px}.client__error-actions button+button{margin-left:8px}\n"] }]
+        }], ctorParameters: () => [{ type: i1$1.DomSanitizer }], propDecorators: { height: [{
                 type: Input,
                 args: ['height']
             }], stylesFile: [{
@@ -922,6 +1013,12 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImpo
             }], partsTableComponent: [{
                 type: Input,
                 args: ['partsTableComponent']
+            }], serviceUrl: [{
+                type: Input,
+                args: [{ required: true, alias: 'serviceUrl' }]
+            }], authHeaderSupplier: [{
+                type: Input,
+                args: [{ required: true, alias: 'authHeaderSupplier' }]
             }], onMessage: [{
                 type: Output
             }], onTicketCreated: [{

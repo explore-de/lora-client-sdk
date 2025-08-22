@@ -1,5 +1,5 @@
-import { ClientMessage } from "../types/ClientMessage";
-import { TicketInformation } from "@/lora-client/src/types/TicketInformation";
+import { ClientMessage } from '../types/ClientMessage';
+import { TicketInformation } from '@/lora-client/src/types/TicketInformation';
 import * as i0 from "@angular/core";
 export declare enum ConnectionStatus {
     DISCONNECTED = "disconnected",
@@ -14,6 +14,9 @@ interface EventListeners {
 }
 export declare class LoraClientService {
     private serviceUrl;
+    setServiceUrl(url: string): void;
+    private authHeaderSupplier;
+    setAuthHeaderSupplier(supplier: () => string): void;
     private url;
     private socket;
     private isConnected;
@@ -22,7 +25,7 @@ export declare class LoraClientService {
     private messagesQueue;
     private listeners;
     private heartBeatInterval;
-    createSession(token: string): Promise<string | undefined>;
+    createSession(): Promise<string>;
     connect(options: {
         sessionId: string;
         url?: string;
@@ -44,6 +47,8 @@ export declare class LoraClientService {
     private startHeartBeat;
     private stopHeartBeat;
     ticketToRequest(ticket: TicketInformation): string;
+    private checkServiceUrl;
+    private getAuthHeader;
     static ɵfac: i0.ɵɵFactoryDeclaration<LoraClientService, never>;
     static ɵprov: i0.ɵɵInjectableDeclaration<LoraClientService>;
 }
