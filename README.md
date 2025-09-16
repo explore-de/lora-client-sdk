@@ -249,7 +249,8 @@ The following CSS classes and selectors are defined in Lora Client:
 - `.client-message-send__icon`
 - `.client-message`
 - `.client-message__content`
-- `.client-message--own`
+- `.client-message--own` (User message)
+- `.client-message--signal` (Signal message)
 - `.client__message-input__textarea`
 - `.ticket-widget`
 - `.ticket-widget__header`
