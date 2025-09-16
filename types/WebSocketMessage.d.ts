@@ -6,4 +6,5 @@ export type WebSocketMessage = {
     ticketSuggestionNullable: TicketInformation | null;
     createdTicketNullable: TicketInformation | null;
     ticketSearchResultsNullable: TicketInformation[] | null;
+    isSignal?: boolean;
 };

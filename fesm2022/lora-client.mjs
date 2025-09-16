@@ -125,6 +125,7 @@ class LoraClientService {
                 content: item.text,
                 time: item.creationDate,
                 parts: item.parts,
+                isSignal: item.isSignal || false
             };
             return message;
         });
@@ -141,6 +142,7 @@ class LoraClientService {
         let ticketSuggestionWidget = undefined;
         let ticketWidget = undefined;
         let ticketsWidget = undefined;
+        let isSignal = false;
         try {
             json = JSON.parse(data);
             content = json.text;
@@ -148,6 +150,7 @@ class LoraClientService {
             ticketSuggestionWidget = json.ticketSuggestionNullable;
             ticketWidget = json.createdTicketNullable;
             ticketsWidget = json.ticketSearchResultsNullable;
+            isSignal = json.isSignal || false;
         }
         catch (e) {
             content = data;
@@ -158,6 +161,7 @@ class LoraClientService {
             content,
             parts,
             time: Date.now(),
+            isSignal
         };
         if (ticketSuggestionWidget &&
             Object.keys(ticketSuggestionWidget).length > 0) {
@@ -190,6 +194,7 @@ class LoraClientService {
                 user: 'me',
                 time: Date.now(),
                 content: message.content,
+                isSignal: false,
             });
         }
         this.socket?.send(message?.content);

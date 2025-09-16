@@ -20,4 +20,5 @@ export type ClientMessage = {
     time: number;
     parts?: ClientMessagePartDetails[];
     widget?: ClientWidgetMessage;
+    isSignal: boolean;
 };
