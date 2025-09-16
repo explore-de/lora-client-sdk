@@ -703,7 +703,7 @@ class MessageComponent {
     }
     static ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: MessageComponent, deps: [], target: i0.ɵɵFactoryTarget.Component });
     static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "18.2.13", type: MessageComponent, isStandalone: true, selector: "client-message", inputs: { message: "message", partsTableComponent: "partsTableComponent" }, usesOnChanges: true, ngImport: i0, template: `
-    <div class="client-message" [ngClass]="{'client-message--own': message.user == 'me'}">
+    <div class="client-message" [ngClass]="{'client-message--own': message.user == 'me', 'client-message--signal': message.isSignal}">
       <div class="client-message__content">
         <div *ngIf="message.content" [innerHTML]="getFormattedMessage()"></div>
 
@@ -721,7 +721,7 @@ class MessageComponent {
 i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "18.2.13", ngImport: i0, type: MessageComponent, decorators: [{
             type: Component,
             args: [{ selector: 'client-message', standalone: true, encapsulation: ViewEncapsulation.None, imports: [NgClass, NgComponentOutlet, NgIf], template: `
-    <div class="client-message" [ngClass]="{'client-message--own': message.user == 'me'}">
+    <div class="client-message" [ngClass]="{'client-message--own': message.user == 'me', 'client-message--signal': message.isSignal}">
       <div class="client-message__content">
         <div *ngIf="message.content" [innerHTML]="getFormattedMessage()"></div>
 
