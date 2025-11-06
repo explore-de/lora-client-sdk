@@ -63,6 +63,8 @@ class LoraClientService {
         const sessionId = options.sessionId;
         this.currentSessionId = sessionId; // Store for reconnection
         this.isDeliberateDisconnect = false; // Reset flag when initiating new connection
+        this.messages = []; // Clear old messages when starting new connection
+        this.messagesQueue = []; // Clear message queue as well
         this.url = (options.url ?? `${this.serviceUrl}/chat/${sessionId}`)
             .replace('https://', 'wss://')
             .replace('http://', 'ws://');
@@ -322,7 +324,21 @@ class LoraClientService {
         window.clearInterval(this.heartBeatInterval);
     }
     ticketToRequest(ticket) {
-        return ('This ticket looks good please save it now: ' + JSON.stringify(ticket));
+        // Create a copy of the ticket with properly formatted dates
+        const ticketCopy = { ...ticket };
+        // Format date fields to ISO format (yyyy-MM-dd'T'HH:mm:ss.SSSXXX)
+        const dateFields = ['targetDate', 'dueDate'];
+        dateFields.forEach((field) => {
+            if (ticketCopy[field]) {
+                const dateValue = ticketCopy[field];
+                // Convert to Date object if it's not already, then to ISO string
+                const date = typeof dateValue === 'string' ? new Date(dateValue) : dateValue;
+                if (date instanceof Date && !isNaN(date.getTime())) {
+                    ticketCopy[field] = date.toISOString();
+                }
+            }
+        });
+        return ('This ticket looks good please save it now: ' + JSON.stringify(ticketCopy));
     }
     checkServiceUrl() {
         if (!this.serviceUrl) {
@@ -542,17 +558,17 @@ class TicketWidgetComponent {
         { key: 'id', value: 'Ticket ID' },
         { key: 'title', value: 'Title' },
         { key: 'description', value: 'Description' },
-        { key: 'dueDate', value: 'Due Date', },
+        { key: 'dueDate', value: 'Due Date' },
         { key: 'geo', value: 'Geo Information' },
-        { key: 'responsible', value: 'Responsible Person' },
+        { key: 'responsiblePerson', value: 'Responsible Person' },
         { key: 'completed', value: 'Completed' },
-        { key: 'status', value: 'Status' }
+        { key: 'status', value: 'Status' },
     ];
     editableFieldsMap = new Map([
         ['completed', 'checkbox'],
-        ['responsible', 'text'],
+        ['responsiblePerson', 'text'],
         ['geo', 'text'],
-        ['dueDate', 'date']
+        ['dueDate', 'date'],
     ]);
     otherFields = [];
     isSaved = false;
@@ -569,17 +585,21 @@ class TicketWidgetComponent {
         // If using input binding mode
         if (this.ticket) {
             this.isEditable = this.editable;
-            this.otherFields = Object.entries(this.ticket.customData || {}).filter(([key, value]) => {
+            this.otherFields = Object.entries(this.ticket.customData || {})
+                .filter(([key, value]) => {
                 return !knownKeys.includes(key) && typeof value !== 'object';
-            }).map(([key, value]) => ({ key, value }));
+            })
+                .map(([key, value]) => ({ key, value }));
         }
         // If using message injection mode
         else if (this.widget) {
             // Only get custom data fields, not all ticket properties
             const ticket = this.widget.widgetProps.ticket;
-            this.otherFields = Object.entries(ticket?.customData || {}).filter(([key, value]) => {
+            this.otherFields = Object.entries(ticket?.customData || {})
+                .filter(([key, value]) => {
                 return !knownKeys.includes(key) && typeof value !== 'object';
-            }).map(([key, value]) => ({ key, value }));
+            })
+                .map(([key, value]) => ({ key, value }));
         }
     }
     onClickSave() {
@@ -627,7 +647,9 @@ class TicketWidgetComponent {
             <editable-field
               [value]="getFieldValue(field.key)"
               [type]="editableFieldsMap.get(field.key) || 'text'"
-              [isViewOnly]="!isEditable || isSaved || !editableFieldsMap.has(field.key)"
+              [isViewOnly]="
+                !isEditable || isSaved || !editableFieldsMap.has(field.key)
+              "
               (onChange)="setFieldValue(field.key, $event)"
             />
           </td>
@@ -644,7 +666,9 @@ class TicketWidgetComponent {
                 <editable-field
                   [value]="field.value"
                   [type]="editableFieldsMap.get(field.key) || 'text'"
-                  [isViewOnly]="!isEditable || isSaved || !editableFieldsMap.has(field.key)"
+                  [isViewOnly]="
+                    !isEditable || isSaved || !editableFieldsMap.has(field.key)
+                  "
                   (onChange)="setFieldValue(field.key, $event)"
                 />
               </td>
@@ -671,7 +695,9 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "20.3.2", ngImpor
             <editable-field
               [value]="getFieldValue(field.key)"
               [type]="editableFieldsMap.get(field.key) || 'text'"
-              [isViewOnly]="!isEditable || isSaved || !editableFieldsMap.has(field.key)"
+              [isViewOnly]="
+                !isEditable || isSaved || !editableFieldsMap.has(field.key)
+              "
               (onChange)="setFieldValue(field.key, $event)"
             />
           </td>
@@ -688,7 +714,9 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "20.3.2", ngImpor
                 <editable-field
                   [value]="field.value"
                   [type]="editableFieldsMap.get(field.key) || 'text'"
-                  [isViewOnly]="!isEditable || isSaved || !editableFieldsMap.has(field.key)"
+                  [isViewOnly]="
+                    !isEditable || isSaved || !editableFieldsMap.has(field.key)
+                  "
                   (onChange)="setFieldValue(field.key, $event)"
                 />
               </td>
@@ -948,6 +976,7 @@ class LoraClient {
         try {
             const sessionId = localStorage.getItem('LORA_CLIENT_SESSION_ID') ||
                 (await this.loraClientService.createSession());
+            this.messages = [];
             if (!sessionId) {
                 throw Error('Failed to receive session id');
             }
@@ -1057,7 +1086,9 @@ class LoraClient {
             Connection lost. Would you like to reconnect?
           </div>
           <div class="client__error-actions">
-            <button (click)="onClickReconnect()">Reconnect to current session</button>
+            <button (click)="onClickReconnect()">
+              Reconnect to current session
+            </button>
             <button (click)="onClickNewSession()">Start new session</button>
           </div>
         </div>
@@ -1117,7 +1148,9 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "20.3.2", ngImpor
             Connection lost. Would you like to reconnect?
           </div>
           <div class="client__error-actions">
-            <button (click)="onClickReconnect()">Reconnect to current session</button>
+            <button (click)="onClickReconnect()">
+              Reconnect to current session
+            </button>
             <button (click)="onClickNewSession()">Start new session</button>
           </div>
         </div>
