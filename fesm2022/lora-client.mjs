@@ -1,5 +1,5 @@
 import * as i0 from '@angular/core';
-import { Injectable, EventEmitter, ViewChild, Output, Input, ViewEncapsulation, Component, inject, Inject, Injector } from '@angular/core';
+import { Injectable, EventEmitter, ViewChild, Output, Input, ViewEncapsulation, Component, inject, Optional, Inject, Injector } from '@angular/core';
 import { NgIf, NgForOf, NgClass, NgComponentOutlet, NgStyle } from '@angular/common';
 import * as i1 from '@angular/forms';
 import { FormsModule } from '@angular/forms';
@@ -16,6 +16,7 @@ var ConnectionStatus;
     ConnectionStatus["DISCONNECTED"] = "disconnected";
     ConnectionStatus["CONNECTED"] = "connected";
     ConnectionStatus["CONNECTING"] = "connecting";
+    ConnectionStatus["RECONNECTING"] = "reconnecting";
     ConnectionStatus["ERROR"] = "error";
 })(ConnectionStatus || (ConnectionStatus = {}));
 var MessageStatus;
@@ -45,9 +46,12 @@ class LoraClientService {
     messagesQueue = [];
     listeners = {};
     heartBeatInterval = 0;
+    // Session tracking
+    currentSessionId = null;
+    isDeliberateDisconnect = false;
     async createSession() {
         this.checkServiceUrl();
-        const options = { headers: { 'Authorization': this.getAuthHeader() } };
+        const options = { headers: { Authorization: this.getAuthHeader() } };
         const response = await window.fetch(`${this.serviceUrl}/session`, options);
         if (response.status !== 200) {
             throw new ClientError(`Failed to create session, status: ${response.status}`);
@@ -57,6 +61,8 @@ class LoraClientService {
     async connect(options) {
         this.checkServiceUrl();
         const sessionId = options.sessionId;
+        this.currentSessionId = sessionId; // Store for reconnection
+        this.isDeliberateDisconnect = false; // Reset flag when initiating new connection
         this.url = (options.url ?? `${this.serviceUrl}/chat/${sessionId}`)
             .replace('https://', 'wss://')
             .replace('http://', 'ws://');
@@ -69,9 +75,17 @@ class LoraClientService {
         if (this.socket && this.socket.readyState !== WebSocket.CLOSED) {
             throw new ClientError('WebSocket connection is already open or opening.');
         }
+        // Clean up old socket if it exists
+        if (this.socket) {
+            this.socket.onopen = null;
+            this.socket.onclose = null;
+            this.socket.onmessage = null;
+            this.socket.onerror = null;
+            this.socket = null;
+        }
         let oldMessages = [];
         let resolvePromise;
-        let rejectPromise;
+        let rejectPromise = () => { };
         const promise = new Promise((resolve, reject) => {
             resolvePromise = resolve;
             rejectPromise = reject;
@@ -100,9 +114,22 @@ class LoraClientService {
                 }
             };
             this.socket.onclose = () => {
+                const wasConnected = this.isConnected;
                 this.isConnected = false;
                 this.stopHeartBeat();
-                this.emitStatus(this.isError ? ConnectionStatus.ERROR : ConnectionStatus.DISCONNECTED);
+                // Reject promise if connection never succeeded
+                if (!wasConnected) {
+                    rejectPromise?.('Connection closed before being established');
+                }
+                // Don't show error if it's a deliberate disconnect
+                if (this.isDeliberateDisconnect) {
+                    this.isDeliberateDisconnect = false; // Reset flag
+                    this.emitStatus(ConnectionStatus.DISCONNECTED);
+                    return;
+                }
+                // Show error status - UI will display manual reconnection options
+                this.isError = true;
+                this.emitStatus(ConnectionStatus.ERROR);
             };
             this.socket.onerror = (event) => {
                 this.isError = true;
@@ -111,12 +138,15 @@ class LoraClientService {
         }
         catch (e) {
             console.error(e);
-            return;
+            this.isError = true;
+            this.emitStatus(ConnectionStatus.ERROR);
+            rejectPromise?.(e);
+            throw e;
         }
         return promise;
     }
     async getMessagesHistory(sessionId) {
-        const response = await window.fetch(`${this.serviceUrl}/${sessionId}/messages`, { headers: { 'Authorization': this.getAuthHeader() } });
+        const response = await window.fetch(`${this.serviceUrl}/${sessionId}/messages`, { headers: { Authorization: this.getAuthHeader() } });
         const data = await response.json();
         const messages = (data || []).map((item) => {
             const message = {
@@ -125,7 +155,7 @@ class LoraClientService {
                 content: item.text,
                 time: item.creationDate,
                 parts: item.parts,
-                isSignal: item.isSignal || false
+                isSignal: item.isSignal || false,
             };
             return message;
         });
@@ -161,7 +191,7 @@ class LoraClientService {
             content,
             parts,
             time: Date.now(),
-            isSignal
+            isSignal,
         };
         if (ticketSuggestionWidget &&
             Object.keys(ticketSuggestionWidget).length > 0) {
@@ -252,9 +282,31 @@ class LoraClientService {
     disconnect() {
         this.messages = [];
         this.messagesQueue = [];
+        this.isDeliberateDisconnect = true;
         if (this.socket) {
             this.socket.close(1000, 'Closed by client');
         }
+    }
+    /**
+     * Manually reconnect to the current session
+     * @returns Promise that resolves when reconnected
+     */
+    async reconnect() {
+        if (!this.currentSessionId) {
+            throw new ClientError('No session ID available for reconnection');
+        }
+        this.isError = false;
+        await this.connect({
+            sessionId: this.currentSessionId,
+            loadHistory: false,
+        });
+    }
+    /**
+     * Get the current session ID
+     * @returns The current session ID or null if no session is active
+     */
+    getCurrentSessionId() {
+        return this.currentSessionId;
     }
     sendHeartBeat() {
         if (this.isConnected) {
@@ -292,6 +344,7 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "20.3.2", ngImpor
 
 class ClientMessageInputComponent {
     message;
+    disabled = false;
     onMessageChanged = new EventEmitter();
     onEnterPressed = new EventEmitter();
     textarea;
@@ -325,11 +378,12 @@ class ClientMessageInputComponent {
         textarea.style.height = Math.min(textarea.scrollHeight, 180) + 'px'; // Set new height, limited to 180px
     }
     static ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "20.3.2", ngImport: i0, type: ClientMessageInputComponent, deps: [], target: i0.ɵɵFactoryTarget.Component });
-    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "20.3.2", type: ClientMessageInputComponent, isStandalone: true, selector: "client-message-input", inputs: { message: "message" }, outputs: { onMessageChanged: "onMessageChanged", onEnterPressed: "onEnterPressed" }, viewQueries: [{ propertyName: "textarea", first: true, predicate: ["textarea"], descendants: true }], usesOnChanges: true, ngImport: i0, template: `<textarea
+    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "20.3.2", type: ClientMessageInputComponent, isStandalone: true, selector: "client-message-input", inputs: { message: "message", disabled: "disabled" }, outputs: { onMessageChanged: "onMessageChanged", onEnterPressed: "onEnterPressed" }, viewQueries: [{ propertyName: "textarea", first: true, predicate: ["textarea"], descendants: true }], usesOnChanges: true, ngImport: i0, template: `<textarea
     #textarea
     [(ngModel)]="content"
     (input)="onInput()"
     (keydown)="onKeyDown($event)"
+    [disabled]="disabled"
     class="client__message-input__textarea"
     placeholder="Type your message..."></textarea>`, isInline: true, styles: [".client__message-input__textarea{min-height:34px;max-height:180px;height:34px;width:100%;max-width:100%;resize:none;margin-bottom:-4px;padding:8px}\n"], dependencies: [{ kind: "ngmodule", type: FormsModule }, { kind: "directive", type: i1.DefaultValueAccessor, selector: "input:not([type=checkbox])[formControlName],textarea[formControlName],input:not([type=checkbox])[formControl],textarea[formControl],input:not([type=checkbox])[ngModel],textarea[ngModel],[ngDefaultControl]" }, { kind: "directive", type: i1.NgControlStatus, selector: "[formControlName],[ngModel],[formControl]" }, { kind: "directive", type: i1.NgModel, selector: "[ngModel]:not([formControlName]):not([formControl])", inputs: ["name", "disabled", "ngModel", "ngModelOptions"], outputs: ["ngModelChange"], exportAs: ["ngModel"] }], encapsulation: i0.ViewEncapsulation.None });
 }
@@ -340,11 +394,15 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "20.3.2", ngImpor
     [(ngModel)]="content"
     (input)="onInput()"
     (keydown)="onKeyDown($event)"
+    [disabled]="disabled"
     class="client__message-input__textarea"
     placeholder="Type your message..."></textarea>`, styles: [".client__message-input__textarea{min-height:34px;max-height:180px;height:34px;width:100%;max-width:100%;resize:none;margin-bottom:-4px;padding:8px}\n"] }]
         }], propDecorators: { message: [{
                 type: Input,
                 args: ['message']
+            }], disabled: [{
+                type: Input,
+                args: ['disabled']
             }], onMessageChanged: [{
                 type: Output
             }], onEnterPressed: [{
@@ -355,10 +413,11 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "20.3.2", ngImpor
             }] } });
 
 class MessageSendComponent {
+    disabled = false;
     onClickSend = new EventEmitter();
     static ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "20.3.2", ngImport: i0, type: MessageSendComponent, deps: [], target: i0.ɵɵFactoryTarget.Component });
-    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "20.3.2", type: MessageSendComponent, isStandalone: true, selector: "client-message-send", outputs: { onClickSend: "onClickSend" }, ngImport: i0, template: `
-      <button class="client-message-send" (click)="onClickSend.emit()">
+    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "20.3.2", type: MessageSendComponent, isStandalone: true, selector: "client-message-send", inputs: { disabled: "disabled" }, outputs: { onClickSend: "onClickSend" }, ngImport: i0, template: `
+      <button class="client-message-send" (click)="onClickSend.emit()" [disabled]="disabled">
           <svg class="client-message-send__icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
               <title>send</title>
               <path d="M2,21L23,12L2,3V10L17,12L2,14V21Z"/>
@@ -368,13 +427,16 @@ class MessageSendComponent {
 i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "20.3.2", ngImport: i0, type: MessageSendComponent, decorators: [{
             type: Component,
             args: [{ selector: 'client-message-send', encapsulation: ViewEncapsulation.None, imports: [], template: `
-      <button class="client-message-send" (click)="onClickSend.emit()">
+      <button class="client-message-send" (click)="onClickSend.emit()" [disabled]="disabled">
           <svg class="client-message-send__icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
               <title>send</title>
               <path d="M2,21L23,12L2,3V10L17,12L2,14V21Z"/>
           </svg>
       </button>`, styles: [".client-message-send{background:var(--button-main-color);border:none;outline:none;border-radius:0;height:100%;cursor:pointer}.client-message-send__icon{height:24px;width:24px;fill:var(--button-text-color)}.client-message-send:hover{background:var(--button-hover-color)}.client-message-send:active{background:var(--button-active-color)}\n"] }]
-        }], propDecorators: { onClickSend: [{
+        }], propDecorators: { disabled: [{
+                type: Input,
+                args: ['disabled']
+            }], onClickSend: [{
                 type: Output
             }] } });
 
@@ -473,48 +535,89 @@ class TicketWidgetComponent {
     message;
     loraClientService = inject(LoraClientService);
     widget;
+    // Input for reusable mode (when used in a loop)
+    ticket;
+    editable = false;
     fields = [
+        { key: 'id', value: 'Ticket ID' },
         { key: 'title', value: 'Title' },
         { key: 'description', value: 'Description' },
         { key: 'dueDate', value: 'Due Date', },
         { key: 'geo', value: 'Geo Information' },
-        { key: 'responsiblePerson', value: 'Responsible Person' },
-        { key: 'completed', value: 'Completed' }
+        { key: 'responsible', value: 'Responsible Person' },
+        { key: 'completed', value: 'Completed' },
+        { key: 'status', value: 'Status' }
     ];
     editableFieldsMap = new Map([
         ['completed', 'checkbox'],
-        ['responsiblePerson', 'text'],
+        ['responsible', 'text'],
         ['geo', 'text'],
         ['dueDate', 'date']
     ]);
     otherFields = [];
     isSaved = false;
-    isEditable;
+    isEditable = false;
     constructor(message) {
         this.message = message;
-        this.widget = this.message?.widget;
-        this.isEditable = this.widget?.widgetProps.isEditable || false;
-        this.otherFields = Object.entries(this.widget?.widgetProps.ticket || {}).filter(([key, value]) => {
-            return !this.fields.map(({ key }) => key).includes(key) && typeof value !== 'object';
-        }).map(([key, value]) => ({ key, value }));
+        if (this.message) {
+            this.widget = this.message?.widget;
+            this.isEditable = this.widget?.widgetProps.isEditable || false;
+        }
+    }
+    ngOnInit() {
+        const knownKeys = this.fields.map(({ key }) => key);
+        // If using input binding mode
+        if (this.ticket) {
+            this.isEditable = this.editable;
+            this.otherFields = Object.entries(this.ticket.customData || {}).filter(([key, value]) => {
+                return !knownKeys.includes(key) && typeof value !== 'object';
+            }).map(([key, value]) => ({ key, value }));
+        }
+        // If using message injection mode
+        else if (this.widget) {
+            // Only get custom data fields, not all ticket properties
+            const ticket = this.widget.widgetProps.ticket;
+            this.otherFields = Object.entries(ticket?.customData || {}).filter(([key, value]) => {
+                return !knownKeys.includes(key) && typeof value !== 'object';
+            }).map(([key, value]) => ({ key, value }));
+        }
     }
     onClickSave() {
-        this.loraClientService.sendMessage(this.loraClientService.ticketToRequest(this.widget.widgetProps.ticket), true);
-        this.isSaved = true;
+        if (this.widget) {
+            this.loraClientService.sendMessage(this.loraClientService.ticketToRequest(this.widget.widgetProps.ticket), true);
+            this.isSaved = true;
+        }
     }
     getFieldValue(key) {
+        // Input mode
+        if (this.ticket) {
+            const value = this.ticket[key];
+            if (value === undefined || value === null)
+                return '';
+            if (typeof value === 'boolean')
+                return value ? 'Yes' : 'No';
+            return String(value);
+        }
+        // Widget mode
         //@ts-ignore
         return this.widget?.widgetProps?.ticket?.[key] || '';
     }
     setFieldValue(key, value) {
-        //@ts-ignore
-        this.widget.widgetProps.ticket[key] = value;
+        // Input mode
+        if (this.ticket) {
+            this.ticket[key] = value;
+        }
+        // Widget mode
+        else if (this.widget) {
+            //@ts-ignore
+            this.widget.widgetProps.ticket[key] = value;
+        }
     }
-    trackByFn(index, item) {
+    trackByFn(_index, item) {
         return item.key;
     }
-    static ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "20.3.2", ngImport: i0, type: TicketWidgetComponent, deps: [{ token: 'message' }], target: i0.ɵɵFactoryTarget.Component });
-    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "20.3.2", type: TicketWidgetComponent, isStandalone: true, selector: "ticket-widget", ngImport: i0, template: `
+    static ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "20.3.2", ngImport: i0, type: TicketWidgetComponent, deps: [{ token: 'message', optional: true }], target: i0.ɵɵFactoryTarget.Component });
+    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "20.3.2", type: TicketWidgetComponent, isStandalone: true, selector: "ticket-widget", inputs: { ticket: "ticket", editable: "editable" }, ngImport: i0, template: `
     <div class="ticket-widget">
       <div class="ticket-widget__header">Ticket information:</div>
       <table class="ticket-widget__table">
@@ -524,7 +627,7 @@ class TicketWidgetComponent {
             <editable-field
               [value]="getFieldValue(field.key)"
               [type]="editableFieldsMap.get(field.key) || 'text'"
-              [isViewOnly]="!isEditable || isSaved"
+              [isViewOnly]="!isEditable || isSaved || !editableFieldsMap.has(field.key)"
               (onChange)="setFieldValue(field.key, $event)"
             />
           </td>
@@ -568,7 +671,7 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "20.3.2", ngImpor
             <editable-field
               [value]="getFieldValue(field.key)"
               [type]="editableFieldsMap.get(field.key) || 'text'"
-              [isViewOnly]="!isEditable || isSaved"
+              [isViewOnly]="!isEditable || isSaved || !editableFieldsMap.has(field.key)"
               (onChange)="setFieldValue(field.key, $event)"
             />
           </td>
@@ -600,9 +703,15 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "20.3.2", ngImpor
     </div>
   `, styles: [".ticket-widget{border:1px solid #ccc;padding:16px;border-radius:8px;margin-top:4px;background-color:#f9f9f9;max-width:100%;overflow:hidden}.ticket-widget__header{font-style:italic;border-bottom:2px solid white;padding-bottom:4px;margin-bottom:4px;font-size:1.2rem;font-weight:700}.ticket-widget__table{border-collapse:collapse;width:100%}.ticket-widget__field{font-weight:700;vertical-align:top;white-space:nowrap}.ticket-widget__value{padding-left:16px;vertical-align:top;width:100%;word-wrap:break-word}.ticket-widget__custom-attributes{margin-top:8px}.ticket-widget__actions{display:flex;justify-content:flex-end}\n"] }]
         }], ctorParameters: () => [{ type: undefined, decorators: [{
+                    type: Optional
+                }, {
                     type: Inject,
                     args: ['message']
-                }] }] });
+                }] }], propDecorators: { ticket: [{
+                type: Input
+            }], editable: [{
+                type: Input
+            }] } });
 
 class TicketsWidgetComponent {
     message;
@@ -613,33 +722,27 @@ class TicketsWidgetComponent {
         this.widget = this.message?.widget;
         this.tickets = this.widget?.widgetProps.tickets || [];
     }
-    trackByFn(index, item) {
+    trackByFn(_index, item) {
         return item.id;
     }
     static ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "20.3.2", ngImport: i0, type: TicketsWidgetComponent, deps: [{ token: 'message' }], target: i0.ɵɵFactoryTarget.Component });
     static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "20.3.2", type: TicketsWidgetComponent, isStandalone: true, selector: "tickets-widget", ngImport: i0, template: `
     <div class="tickets-widget">
       <ng-container *ngFor="let ticket of tickets; trackBy: trackByFn">
-        <div class="tickets-widget__ticket">
-          <div class="tickets-widget__ticket-id">{{ ticket.id }}</div>
-          <div class="tickets-widget__ticket-title">{{ ticket.title }}</div>
-        </div>
+        <ticket-widget [ticket]="ticket" [editable]="false"></ticket-widget>
       </ng-container>
     </div>
-  `, isInline: true, styles: [".tickets-widget{border:1px solid #ccc;padding:16px;border-radius:8px;margin-top:4px;background-color:#f9f9f9;max-width:100%;display:flex;flex-direction:column}.tickets-widget__ticket{display:flex;gap:8px;padding:4px 0}.tickets-widget__ticket-id{font-weight:700}\n"], dependencies: [{ kind: "directive", type: NgForOf, selector: "[ngFor][ngForOf]", inputs: ["ngForOf", "ngForTrackBy", "ngForTemplate"] }] });
+  `, isInline: true, styles: [".tickets-widget{display:flex;flex-direction:column;gap:12px}.tickets-widget ticket-widget{display:block}\n"], dependencies: [{ kind: "directive", type: NgForOf, selector: "[ngFor][ngForOf]", inputs: ["ngForOf", "ngForTrackBy", "ngForTemplate"] }, { kind: "component", type: TicketWidgetComponent, selector: "ticket-widget", inputs: ["ticket", "editable"] }] });
 }
 i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "20.3.2", ngImport: i0, type: TicketsWidgetComponent, decorators: [{
             type: Component,
-            args: [{ selector: 'tickets-widget', imports: [NgForOf], template: `
+            args: [{ selector: 'tickets-widget', imports: [NgForOf, TicketWidgetComponent], template: `
     <div class="tickets-widget">
       <ng-container *ngFor="let ticket of tickets; trackBy: trackByFn">
-        <div class="tickets-widget__ticket">
-          <div class="tickets-widget__ticket-id">{{ ticket.id }}</div>
-          <div class="tickets-widget__ticket-title">{{ ticket.title }}</div>
-        </div>
+        <ticket-widget [ticket]="ticket" [editable]="false"></ticket-widget>
       </ng-container>
     </div>
-  `, styles: [".tickets-widget{border:1px solid #ccc;padding:16px;border-radius:8px;margin-top:4px;background-color:#f9f9f9;max-width:100%;display:flex;flex-direction:column}.tickets-widget__ticket{display:flex;gap:8px;padding:4px 0}.tickets-widget__ticket-id{font-weight:700}\n"] }]
+  `, styles: [".tickets-widget{display:flex;flex-direction:column;gap:12px}.tickets-widget ticket-widget{display:block}\n"] }]
         }], ctorParameters: () => [{ type: undefined, decorators: [{
                     type: Inject,
                     args: ['message']
@@ -874,8 +977,28 @@ class LoraClient {
     onEnterPressed() {
         this.sendMessage();
     }
-    onClickReconnect() {
-        this.connect();
+    async onClickReconnect() {
+        try {
+            this.status = ConnectionStatus.CONNECTING;
+            await this.loraClientService.reconnect();
+        }
+        catch (e) {
+            console.error('Reconnection error:', e);
+            this.status = ConnectionStatus.ERROR;
+        }
+    }
+    async onClickNewSession() {
+        try {
+            this.status = ConnectionStatus.CONNECTING;
+            // Clear the stored session ID
+            localStorage.removeItem('LORA_CLIENT_SESSION_ID');
+            // Create and connect to a new session
+            await this.connect();
+        }
+        catch (e) {
+            console.error('New session error:', e);
+            this.status = ConnectionStatus.ERROR;
+        }
     }
     onMessageReceived(message) {
         this.messages = this.loraClientService.getMessages();
@@ -931,10 +1054,11 @@ class LoraClient {
       <div class="client__status">
         <div class="client__error">
           <div class="client__error-message">
-            Connection failed. Please try again.
+            Connection lost. Would you like to reconnect?
           </div>
           <div class="client__error-actions">
-            <button (click)="onClickReconnect()">Try again</button>
+            <button (click)="onClickReconnect()">Reconnect to current session</button>
+            <button (click)="onClickNewSession()">Start new session</button>
           </div>
         </div>
       </div>
@@ -945,7 +1069,7 @@ class LoraClient {
       type="text/css"
       [href]="sanitizedStylesFile"
     />
-  </div>`, isInline: true, styles: [":host{--background: var(--lora-client__background, transparent);--button-main-color: var(--lora-client__button-main-color, #000000);--button-text-color: var(--lora-client__button-text-color, #fff);--button-hover-color: var(--lora-client__button-hover-color, #3f3f3f);--button-active-color: var(--lora-client__button-active-color, #5b5b5b);--message-border-radius: var(--lora-client__message-border-radius, 16px);--message-color-1: var(--lora-client__message-color-1, #efefef);--message-color-2: var(--lora-client__message-color-2, #a6e4e7)}.client__container{display:flex;flex-direction:column;background:var(--background)}.client__container *{box-sizing:border-box}.client__status{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center}.client__status button{background:var(--button-main-color);color:var(--button-text-color);margin-top:8px;padding:8px;border:none;cursor:pointer}.client__status button:hover{background:var(--button-hover-color)}.client__status button:active{background:var(--button-active-color)}.client__messages{display:block;border:1px solid #dcdcdc;border-bottom:none;height:100%;flex-grow:1;flex-shrink:1;overflow:hidden}.client__input{border:1px solid #dcdcdc;border-top:none;display:flex;flex-direction:row;flex-grow:0;flex-shrink:0}.client__input-message{flex-grow:1;padding:4px}.client::-webkit-scrollbar{background-color:#fff;width:16px}.client::-webkit-scrollbar-track{background-color:#fff}.client::-webkit-scrollbar-track:hover{background-color:#f4f4f4}.client::-webkit-scrollbar-thumb{background-color:#babac0;border-radius:16px;border:5px solid #fff}.client::-webkit-scrollbar-thumb:hover{background-color:#a0a0a5;border:4px solid #f4f4f4}.client::-webkit-scrollbar-button{display:none}.client__error{max-width:360px;text-align:center;font-family:Arial,sans-serif}.client__error-message{font-size:14px;margin-bottom:12px}.client__error-actions button+button{margin-left:8px}\n"], dependencies: [{ kind: "component", type: ClientMessageInputComponent, selector: "client-message-input", inputs: ["message"], outputs: ["onMessageChanged", "onEnterPressed"] }, { kind: "component", type: MessageSendComponent, selector: "client-message-send", outputs: ["onClickSend"] }, { kind: "component", type: MessagesComponent, selector: "client-messages", inputs: ["messages", "partsTableComponent"] }, { kind: "directive", type: NgStyle, selector: "[ngStyle]", inputs: ["ngStyle"] }, { kind: "directive", type: NgIf, selector: "[ngIf]", inputs: ["ngIf", "ngIfThen", "ngIfElse"] }], encapsulation: i0.ViewEncapsulation.ShadowDom });
+  </div>`, isInline: true, styles: [":host{--background: var(--lora-client__background, transparent);--button-main-color: var(--lora-client__button-main-color, #000000);--button-text-color: var(--lora-client__button-text-color, #fff);--button-hover-color: var(--lora-client__button-hover-color, #3f3f3f);--button-active-color: var(--lora-client__button-active-color, #5b5b5b);--message-border-radius: var(--lora-client__message-border-radius, 16px);--message-color-1: var(--lora-client__message-color-1, #efefef);--message-color-2: var(--lora-client__message-color-2, #a6e4e7)}.client__container{display:flex;flex-direction:column;background:var(--background)}.client__container *{box-sizing:border-box}.client__status{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center}.client__status button{background:var(--button-main-color);color:var(--button-text-color);margin-top:8px;padding:8px;border:none;cursor:pointer}.client__status button:hover{background:var(--button-hover-color)}.client__status button:active{background:var(--button-active-color)}.client__messages{display:block;border:1px solid #dcdcdc;border-bottom:none;height:100%;flex-grow:1;flex-shrink:1;overflow:hidden}.client__input{border:1px solid #dcdcdc;border-top:none;display:flex;flex-direction:row;flex-grow:0;flex-shrink:0}.client__input-message{flex-grow:1;padding:4px}.client::-webkit-scrollbar{background-color:#fff;width:16px}.client::-webkit-scrollbar-track{background-color:#fff}.client::-webkit-scrollbar-track:hover{background-color:#f4f4f4}.client::-webkit-scrollbar-thumb{background-color:#babac0;border-radius:16px;border:5px solid #fff}.client::-webkit-scrollbar-thumb:hover{background-color:#a0a0a5;border:4px solid #f4f4f4}.client::-webkit-scrollbar-button{display:none}.client__error{max-width:360px;text-align:center;font-family:Arial,sans-serif}.client__error-message{font-size:14px;margin-bottom:12px}.client__error-actions button+button{margin-left:8px}\n"], dependencies: [{ kind: "component", type: ClientMessageInputComponent, selector: "client-message-input", inputs: ["message", "disabled"], outputs: ["onMessageChanged", "onEnterPressed"] }, { kind: "component", type: MessageSendComponent, selector: "client-message-send", inputs: ["disabled"], outputs: ["onClickSend"] }, { kind: "component", type: MessagesComponent, selector: "client-messages", inputs: ["messages", "partsTableComponent"] }, { kind: "directive", type: NgStyle, selector: "[ngStyle]", inputs: ["ngStyle"] }, { kind: "directive", type: NgIf, selector: "[ngIf]", inputs: ["ngIf", "ngIfThen", "ngIfElse"] }], encapsulation: i0.ViewEncapsulation.ShadowDom });
 }
 i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "20.3.2", ngImport: i0, type: LoraClient, decorators: [{
             type: Component,
@@ -990,10 +1114,11 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "20.3.2", ngImpor
       <div class="client__status">
         <div class="client__error">
           <div class="client__error-message">
-            Connection failed. Please try again.
+            Connection lost. Would you like to reconnect?
           </div>
           <div class="client__error-actions">
-            <button (click)="onClickReconnect()">Try again</button>
+            <button (click)="onClickReconnect()">Reconnect to current session</button>
+            <button (click)="onClickNewSession()">Start new session</button>
           </div>
         </div>
       </div>

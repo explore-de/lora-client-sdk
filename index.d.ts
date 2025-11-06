@@ -53,6 +53,7 @@ declare enum ConnectionStatus {
     DISCONNECTED = "disconnected",
     CONNECTED = "connected",
     CONNECTING = "connecting",
+    RECONNECTING = "reconnecting",
     ERROR = "error"
 }
 type Events = 'message' | 'status';
@@ -73,6 +74,8 @@ declare class LoraClientService {
     private messagesQueue;
     private listeners;
     private heartBeatInterval;
+    private currentSessionId;
+    private isDeliberateDisconnect;
     createSession(): Promise<string>;
     connect(options: {
         sessionId: string;
@@ -91,6 +94,16 @@ declare class LoraClientService {
     off<K extends Events>(event: K, listener: EventListeners[K]): void;
     getMessages(): ClientMessage[];
     disconnect(): void;
+    /**
+     * Manually reconnect to the current session
+     * @returns Promise that resolves when reconnected
+     */
+    reconnect(): Promise<void>;
+    /**
+     * Get the current session ID
+     * @returns The current session ID or null if no session is active
+     */
+    getCurrentSessionId(): string | null;
     private sendHeartBeat;
     private startHeartBeat;
     private stopHeartBeat;
@@ -125,7 +138,8 @@ declare class LoraClient implements OnInit, OnDestroy {
     sendMessage(): void;
     onMessageChanged(message: string): void;
     onEnterPressed(): void;
-    onClickReconnect(): void;
+    onClickReconnect(): Promise<void>;
+    onClickNewSession(): Promise<void>;
     onMessageReceived(message: ClientMessage): void;
     onStatus(status: ConnectionStatus): void;
     ngOnDestroy(): void;
