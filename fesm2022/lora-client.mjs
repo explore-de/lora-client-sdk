@@ -1,5 +1,5 @@
 import * as i0 from '@angular/core';
-import { Injectable, EventEmitter, ViewChild, Output, Input, ViewEncapsulation, Component, inject, Optional, Inject, Injector } from '@angular/core';
+import { Injectable, EventEmitter, ViewChild, Output, Input, ViewEncapsulation, Component, inject, ChangeDetectorRef, Optional, Inject, Injector } from '@angular/core';
 import { NgIf, NgForOf, NgClass, NgComponentOutlet, NgStyle } from '@angular/common';
 import * as i1 from '@angular/forms';
 import { FormsModule } from '@angular/forms';
@@ -550,6 +550,7 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "20.3.2", ngImpor
 class TicketWidgetComponent {
     message;
     loraClientService = inject(LoraClientService);
+    cdr = inject(ChangeDetectorRef);
     widget;
     // Input for reusable mode (when used in a loop)
     ticket;
@@ -606,6 +607,7 @@ class TicketWidgetComponent {
         if (this.widget) {
             this.loraClientService.sendMessage(this.loraClientService.ticketToRequest(this.widget.widgetProps.ticket), true);
             this.isSaved = true;
+            this.cdr.markForCheck();
         }
     }
     getFieldValue(key) {
@@ -877,6 +879,7 @@ class MessagesComponent {
     messages = [];
     partsTableComponent = null;
     container;
+    cdr = inject(ChangeDetectorRef);
     previousMessagesLength = 0;
     ngOnChanges(changes) {
         if (changes['messages']) {
@@ -885,6 +888,7 @@ class MessagesComponent {
                 this.previousMessagesLength = currentMessagesLength;
                 setTimeout(() => {
                     this.scrollBottom();
+                    this.cdr.markForCheck();
                 }, 250);
             }
         }
@@ -954,6 +958,7 @@ class LoraClient {
     sanitizedStylesFile = '';
     ConnectionStatus = ConnectionStatus;
     loraClientService = inject(LoraClientService);
+    cdr = inject(ChangeDetectorRef);
     onMessageListener;
     onStatusListener;
     constructor(sanitizer) {
@@ -1038,9 +1043,11 @@ class LoraClient {
             message.widget.widgetProps.ticket) {
             this.onTicketCreated.emit(message.widget.widgetProps.ticket);
         }
+        this.cdr.markForCheck();
     }
     onStatus(status) {
         this.status = status;
+        this.cdr.markForCheck();
     }
     ngOnDestroy() {
         this.loraClientService.disconnect();

@@ -129,6 +129,7 @@ declare class LoraClient implements OnInit, OnDestroy {
     sanitizedStylesFile: SafeResourceUrl;
     protected readonly ConnectionStatus: typeof ConnectionStatus;
     private loraClientService;
+    private cdr;
     private readonly onMessageListener;
     private readonly onStatusListener;
     constructor(sanitizer: DomSanitizer);
