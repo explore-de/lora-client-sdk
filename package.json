@@ -1,16 +1,16 @@
 {
   "name": "lora-client",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Angular Library for Lora client",
   "author": "Kostyantyn Zamurnyak",
   "license": "MIT",
   "peerDependencies": {
     "@angular/common": "^20.3.2",
-    "@angular/core": "^20.3.2"
+    "@angular/core": "^20.3.16"
   },
   "dependencies": {
-    "oidc-client-ts": "^3.3.0",
-    "tslib": "^2.3.0"
+    "oidc-client-ts": "^3.4.1",
+    "tslib": "^2.8.1"
   },
   "sideEffects": false,
   "module": "fesm2022/lora-client.mjs",
