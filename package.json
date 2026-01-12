@@ -1,12 +1,12 @@
 {
   "name": "lora-client",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "Angular Library for Lora client",
   "author": "Kostyantyn Zamurnyak",
   "license": "MIT",
   "peerDependencies": {
-    "@angular/common": "^20.3.2",
-    "@angular/core": "^20.3.16"
+    "@angular/common": "20.3.14",
+    "@angular/core": "20.3.16"
   },
   "dependencies": {
     "oidc-client-ts": "^3.4.1",
